@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="format-detection" content="telephone=no"/>
-<title>Ballast — rooftop PV ballast design · v91</title>
+<title>Ballast — rooftop PV ballast design · v92</title>
 <style>
 :root{
   --paper:#EDF0F1; --panel:#F8FAFA; --sunk:#E3E8E9;
@@ -576,7 +576,7 @@ tbody tr:last-child td{border-bottom:0}
       <span class="chip">rational design</span>
       <span class="chip">ASTM D1894</span>
       <span class="chip" id="chipCode">PV2-2017 basis</span>
-      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v91 · engine 4.3.5</span>
+      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v92 · engine 4.4.0</span>
     </div>
     <div class="tools">
       <button type="button" id="newBtn" class="go" title="Start a blank project. Clears the name, every evidence reference and all inherited assumptions.">New project</button>
@@ -843,6 +843,11 @@ tbody tr:last-child td{border-bottom:0}
             <option value="mono">Mono-pitch — one facing (south / north)</option>
             <option value="duo">Duo-pitch — east–west tent</option>
           </select></label>
+        <label class="f" title="Landscape puts the module's short side up the slope; portrait puts its long side up the slope. Switching swaps the chord L_p and the tributary length, and h₂ follows."><span>Panel orientation</span>
+          <select id="panelOrient">
+            <option value="landscape">Landscape — long side along the row</option>
+            <option value="portrait">Portrait — long side up the slope</option>
+          </select></label>
         <label class="f" data-layout="duo"><span>Ridge <i>m</i></span>
           <input id="duoRidge" type="number" step="0.01" min="0.05" max="0.40"/></label>
       </div>
@@ -1045,6 +1050,21 @@ tbody tr:last-child td{border-bottom:0}
       <p class="note">Corner vortices (Banks 2013; Kopp) drive the heaviest pads. Pinning only those
         four units lets the field be designed as interior/edge. This unit’s uplift becomes 0 if it
         <i>is</i> an array corner. Sliding of the field is unchanged.</p>
+      <label class="chk"><input type="checkbox" id="anchorAll"/>
+        Full chemical anchor system — anchor every unit, no ballast</label>
+      <div class="sub" data-anch="1">Chemical anchors</div>
+      <div class="grid" data-anch="1">
+        <label class="f"><span>Anchors per unit</span><input id="anchorsPerPoint"/></label>
+        <label class="f" title="Design tension resistance of ONE anchor, from its ETA for the actual substrate, embedment, edge distance and spacing."><span>N<sub>Rd</sub> <i>per anchor, kN</i></span><input id="anchorNRd"/></label>
+        <label class="f" title="Design shear resistance of ONE anchor, from its ETA for the same installation."><span>V<sub>Rd</sub> <i>per anchor, kN</i></span><input id="anchorVRd"/></label>
+        <label class="f"><span>Anchor &amp; ETA <i>reference</i></span><input id="anchorRef"/></label>
+      </div>
+      <p class="note" data-anch="1">Each anchor is a fastener, so its wind area is capped at its own
+        tributary area (PV2 §4) — no load sharing. Per anchor: N<sub>Ed</sub> = (γ<sub>W</sub>F<sub>v</sub> −
+        γ<sub>G</sub>G<sub>s</sub>) / n and V<sub>Ed</sub> = γ<sub>W</sub>F<sub>h</sub> / n, friction not relied on.
+        Checked against N<sub>Rd</sub> and V<sub>Rd</sub> from the anchor's ETA with the EN 1992-4
+        interaction (N<sub>Ed</sub>/N<sub>Rd</sub>)<sup>1.5</sup> + (V<sub>Ed</sub>/V<sub>Rd</sub>)<sup>1.5</sup> ≤ 1.
+        The roof slab or deck must be checked for the anchor loads separately.</p>
     </fieldset>
 
     <fieldset id="sec-slide">
@@ -1329,7 +1349,7 @@ tbody tr:last-child td{border-bottom:0}
   var SANS_CR_COEFF = 1.36;
   /* SANS 10160-3 Table 4 — air density vs altitude (kg/m³). Linear interpolation. */
   var SANS_RHO_TABLE = [[0, 1.20], [500, 1.12], [1000, 1.06], [1500, 1.00], [2000, 0.94]];
-  var ENGINE_VERSION = "4.3.5";
+  var ENGINE_VERSION = "4.4.0";
   var SCHEMA_VERSION = 4;
 
   /* ---- ASCE 7 exposure constants (Table 26.9-1) --------------------------- */
@@ -2666,7 +2686,9 @@ tbody tr:last-child td{border-bottom:0}
     var upliftKN = Math.max(0, (gW * Fv) / gG - Gs);
     var upliftKg = upliftKN * 1000 / G;
     var role = arrayRole(i);
-    var pinned = !!(i.pinCorners && role.corner);
+    /* v92: under the full chemical anchor system every unit is anchored. */
+    var anchorAll = !!i.anchorAll;
+    var pinned = anchorAll || !!(i.pinCorners && role.corner);
     if (pinned) {
       upliftKg = 0;
       upliftKN = 0;
@@ -2738,7 +2760,7 @@ tbody tr:last-child td{border-bottom:0}
     if (muD <= 0) {
       slideFeasible = false;
       slideNote = "mu_d = 0 — friction cannot resist sliding; mechanical restraint required";
-      warnings.push("Design friction is zero. Sliding cannot be satisfied by ballast — restrain the array or enter a tested μ. Uplift kg is still shown.");
+      if (!anchorAll) warnings.push("Design friction is zero. Sliding cannot be satisfied by ballast — restrain the array or enter a tested μ. Uplift kg is still shown.");
     } else {
       var need = (gW * FhArr / muD + gW * FvArr) / gG - GsArr;
       slideTotalKN = Math.max(0, need);
@@ -2802,9 +2824,57 @@ tbody tr:last-child td{border-bottom:0}
       if (rail) { rail.peelKg = peel.kg; rail.peelRole = peel.role; }
     }
 
+    /* --- 4. chemical anchors (v92) -------------------------------------------
+       Anchored units: the hybrid's array corners, or every unit under the full
+       anchor system. Each anchor is a fastener, so PV2 §4 caps its effective
+       wind area at the area tributary to it (the unit's tributary area over the
+       anchors on the unit), with no load sharing and no one-third widening. The
+       smaller area gives the higher coefficient. The unit's force at that
+       coefficient is shared equally between its anchors:
+         tension per anchor  N_Ed = (γ_W·F_v − γ_G·G_s) / n
+         shear per anchor    V_Ed = γ_W·F_h / n      (friction not relied on)
+       checked against the design resistances N_Rd and V_Rd of one anchor from
+       its ETA for the actual substrate, with the EN 1992-4 Eq. (7.54)
+       interaction (N_Ed/N_Rd)^1.5 + (V_Ed/V_Rd)^1.5 ≤ 1. The slab or deck
+       that receives the anchors is outside this check. */
+    var anchor = null;
+    if (pinned) {
+      var nA = Math.max(1, Math.round(num(i.anchorsPerPoint, 2)));
+      var AtA = Atrib / nA;
+      var AnA = normArea(AtA, Lb);
+      var nomA = gcrnNom(i.omega, zone, i.lp, AnA, { basis: basis, A_ft2: AtA / (FT * FT) });
+      var GCrnA = gp * E * nomA.value * tf * dF.value * dDef.value * dafR.value;
+      var FA = q * GCrnA * Atrib;
+      var FvA = FA * Math.cos(w);
+      var FhA = (defOn ? FA / dDef.value : FA) * Math.sin(w) * (1 + defDrag);
+      var NEd = Math.max(0, gW * FvA - gG * Gs) / nA;
+      var VEd = gW * FhA / nA;
+      var NRd = num(i.anchorNRd, 0), VRd = num(i.anchorVRd, 0);
+      var haveR = NRd > 0 && VRd > 0;
+      var uN = haveR ? NEd / NRd : NaN, uV = haveR ? VEd / VRd : NaN;
+      var uI = haveR ? Math.pow(uN, 1.5) + Math.pow(uV, 1.5) : NaN;
+      anchor = {
+        n: nA, Atrib: AtA, An: AnA, nom: nomA.value, GCrn: GCrnA, p: q * GCrnA,
+        F: FA, Fv: FvA, Fh: FhA, NEd: NEd, VEd: VEd, NRd: NRd, VRd: VRd,
+        have: haveR, uN: uN, uV: uV, uI: uI,
+        util: haveR ? Math.max(uN, uV, uI) : NaN,
+        ok: haveR && uN <= 1 + 1e-9 && uV <= 1 + 1e-9 && uI <= 1 + 1e-9,
+        ref: String(i.anchorRef || "")
+      };
+      if (!haveR)
+        warnings.push("Anchor design resistances N_Rd and V_Rd are not entered, so the chemical " +
+          "anchors on this unit are not checked. Take both from the anchor's ETA for the actual " +
+          "substrate, embedment, edge distance and spacing.");
+      else if (!anchor.ok)
+        warnings.push("Chemical anchor check fails on this unit: N_Ed = " + NEd.toFixed(2) +
+          " kN against N_Rd = " + NRd.toFixed(2) + " kN, V_Ed = " + VEd.toFixed(2) +
+          " kN against V_Rd = " + VRd.toFixed(2) + " kN, interaction " + uI.toFixed(2) +
+          " > 1. Add anchors per unit or use a stronger anchor.");
+    }
+
     /* --- governing --- */
     var cands = [{ k: "uplift", kg: upliftKg }];
-    if (slideFeasible && slideUnitKg !== null) {
+    if (slideFeasible && slideUnitKg !== null && !anchorAll) {
       cands.push({ k: muOk ? "array sliding" : "array sliding (indicative)", kg: slideUnitKg });
       if (!muOk)
         warnings.push("Sliding " + Math.round(slideUnitKg) +
@@ -2824,11 +2894,15 @@ tbody tr:last-child td{border-bottom:0}
       });
       cands.unshift({ k: "pinned corner", kg: 0 });
     }
+    /* Full anchor system: the anchors take uplift and sliding, so no
+       mechanism is left for ballast. */
+    if (anchorAll) cands = [{ k: "chemically anchored", kg: 0 }];
     var gov = cands.reduce(function (a, b) { return b.kg > a.kg ? b : a; });
     var requiredKg = gov.kg;
     var allZero = cands.every(function (c) { return c.kg <= 1e-6; });
     var governing = allZero ? "self weight sufficient" : gov.k;
-    if (pinned && allZero) governing = "pinned corner — no ballast";
+    if (anchorAll) governing = "chemically anchored — no ballast";
+    else if (pinned && allZero) governing = "pinned corner — no ballast";
     else if (pinned && gov.k === "uplift") governing = gov.k;
 
     /* ================= VALIDATION ================= */
@@ -2934,7 +3008,9 @@ tbody tr:last-child td{border-bottom:0}
     if (sharePreset.n != null)
       notes.push("Supports engaged from PV2-2017 Example H preset “" + sharePreset.label +
         "” = " + share.toFixed(1) + (i.loadShareConfirmed ? "." : ". Verification box is off — PV2 still wants the rail calc."));
-    if (pinned)
+    if (anchorAll)
+      notes.push("Full chemical anchor system: every unit is anchored and carries no ballast. The anchors take uplift and sliding.");
+    else if (pinned)
       notes.push("Array-corner unit is mechanically attached (hybrid pin). Uplift ballast for this unit is 0. IronRidge BRM / KDS SA / Banks 2013: pin the vortex corners, ballast the field.");
     else if (i.pinCorners && !role.corner)
       notes.push("Hybrid pin is on, but this unit is not an array corner (it is " + role.role +
@@ -3110,7 +3186,7 @@ tbody tr:last-child td{border-bottom:0}
       ea: ea, An: An, AnArr: AnArr,
       zoneDerived: zd, zone: zone, nom: nomR, gammaC: nomR.gc, gammaP: gp, gammaPInfo: gpR,
       edge: ef, E: E, tunnelFactor: tf, floor: floor, withinFig: withinFig,
-      role: role, pinned: pinned, census: census, slideMix: slideMix,
+      role: role, pinned: pinned, anchorAll: anchorAll, anchor: anchor, census: census, slideMix: slideMix,
       deflector: dDef, muLib: muLib, stack: stack,
       GCrn: GCrn, p: p, F: F, Fv: Fv, Fh: Fh, Gs: Gs, unitKg: unitKg,
       roofLoad: (function () {
@@ -3398,7 +3474,7 @@ tbody tr:last-child td{border-bottom:0}
         { eSlideMode: "mix" }, "slide-mix");
     }
     var role0 = arrayRole(raw);
-    if (!raw.pinCorners) {
+    if (!raw.pinCorners && !raw.anchorAll) {
       trial("Pin the four array corners — ballast the field",
         "Banks 2013 / Kopp: corner vortices drive the heaviest pads. IronRidge BRM and KDS SA hybrid. This unit’s uplift becomes 0 only if it is an array corner.",
         { pinCorners: true }, "hybrid");
@@ -6092,6 +6168,8 @@ aeffOut:
     framTribW: 1.134,
     byWhom: "", checkedBy: "", revision: "",
     ballastRho: 2400, trayCover: 100, blockKg: 25, schedExact: false,
+    panelOrient: "landscape",
+    anchorAll: false, anchorsPerPoint: 2, anchorNRd: null, anchorVRd: null, anchorRef: "",
     roofSDL: null, roofSDLRef: "", terrainRef: "", eJustify: "", shareRef: "LM-R42-L continuous over 4 feet at 1.484 m (350 mm row gap). Ixx 45751 mm4, Zxx 2178.6 mm3, fy 196 MPa, 2 rails.",
     screeningRef: "", surfaceType: "", gapPerim: null, gapRow: null,
     railName: "LM-R42-L", railI: 45751, railZ: 2178.6, railFy: 196, railE: 70000, railGM: 1.1,
@@ -6551,7 +6629,38 @@ aeffOut:
       b.tiers = groupTiers(b.recs);
       b.schedTotal = placed(b.recs);
     });
+    sc.anchors = anchorSummary(sc.recs);
     return sc;
+  }
+  /* v92: the chemical anchors in a sweep. Anchored points carry their anchor
+     check from the engine (rec.anchor); this totals them for the schedule and
+     the reports. */
+  function anchorSummary(recs) {
+    var an = recs.filter(function (r) { return r.anchor; });
+    if (!an.length) return null;
+    var worst = null, maxN = 0, maxV = 0;
+    an.forEach(function (r) {
+      maxN = Math.max(maxN, r.anchor.NEd);
+      maxV = Math.max(maxV, r.anchor.VEd);
+      if (r.anchor.have && (!worst || r.anchor.util > worst.anchor.util)) worst = r;
+    });
+    return {
+      units: an.length,
+      count: an.reduce(function (a, r) { return a + r.anchor.n; }, 0),
+      perUnit: an[0].anchor.n,
+      have: an.every(function (r) { return r.anchor.have; }),
+      fail: an.filter(function (r) { return r.anchor.have && !r.anchor.ok; }).length,
+      worst: worst, maxN: maxN, maxV: maxV,
+      NRd: an[0].anchor.NRd, VRd: an[0].anchor.VRd, ref: an[0].anchor.ref
+    };
+  }
+  /* One line of anchor figures for a point, used in tooltips and tables. */
+  function anchorTxt(a) {
+    if (!a) return "";
+    return a.n + " anchor" + (a.n === 1 ? "" : "s") + ": N_Ed " + f(a.NEd, 2) + " kN, V_Ed " +
+      f(a.VEd, 2) + " kN per anchor" + (a.have
+        ? ", utilisation " + f(a.util, 2) + (a.ok ? "" : " \u2014 FAILS")
+        : ", not checked (N_Rd / V_Rd not entered)");
   }
   /* "Tiered" or "Exact", for labels that name the total. */
   function schedWord(sc) { return sc && sc.exact ? "Exact" : "Tiered"; }
@@ -6686,6 +6795,7 @@ aeffOut:
                   roof: a.roof, inHalo: !!a.inHalo,
                   kg: rr.valid ? rr.requiredKg : NaN, E: rr.E, zone: rr.zone,
                   gov: rr.governing, valid: rr.valid, exposed: exposed.join(""),
+                  anchor: rr.anchor || null,
                   fetch: exposed.length ? Math.max.apply(null, exposed.map(function (k) {
                     return a.dUO[k]; })) : 0 };
       recs.push(rec);
@@ -6730,7 +6840,7 @@ aeffOut:
       rawTotal: total, schedTotal: schedTotal,
       uniform: worst ? worst.kg * recs.length : 0,
       crossShielded: crossShielded, byRoof: byRoof,
-      anyInvalid: anyInvalid, at: new Date()
+      anyInvalid: anyInvalid, anchorAll: !!S.anchorAll, at: new Date()
     };
   }
 
@@ -6847,10 +6957,12 @@ aeffOut:
     var pad = 0.6, W = (x1 - x0) + 2 * pad, H = (y1 - y0) + 2 * pad;
     if (!(W > 0) || !(H > 0)) return "";
     var VB = 620, sc2 = VB / W, hh = H * sc2;
-    var footer = stepped ? 68 : 46;
+    var footBase = stepped ? 68 : 46;
+    var hasAnchors = sc.recs.some(function (r) { return r.anchor; });
+    var footer = footBase + (hasAnchors ? 16 : 0);
 
     var key = heatKey(sc);
-    if (!key.list.length) return "";
+    if (!key.list.length && !sc.anchorAll) return "";
     function px(v) { return ((v - x0 + pad) * sc2).toFixed(1); }
     function py(v) { return ((v - y0 + pad) * sc2).toFixed(1); }
 
@@ -6868,44 +6980,67 @@ aeffOut:
         ' m above the lower roof</title></rect>';
     }
 
-    var labels = "";
+    var labels = "", marks = "";
     sc.recs.forEach(function (r) {
       var up = r.roof === "upper";
-      var tk = key.of(r.kg);
+      var tk = sc.anchorAll ? null : key.of(r.kg);
+      var an = r.anchor;
       var cw = Math.max(1, r.w * sc2 - 1), ch = Math.max(1, r.h * sc2 - 1);
+      /* Under the full anchor system there is no ballast to colour: the cell is
+         neutral, or pale red where its anchors fail. */
+      var fill = sc.anchorAll ? (an && an.have && !an.ok ? "#F2B8B5" : "#DCE2E4")
+                              : (tk ? tk.col : HEAT_NONE);
       o += '<rect x="' + px(r.x) + '" y="' + py(r.y) +
         '" width="' + cw.toFixed(1) + '" height="' + ch.toFixed(1) + '" fill="' +
-        (tk ? tk.col : HEAT_NONE) +
+        fill +
         '" stroke="' + (up ? "#132229" : "rgba(19,34,41,.22)") +
         '" stroke-width="' + (up ? "1.1" : ".5") + '"><title>' +
         (stepped ? (up ? "upper block \u00b7 " : "lower roof \u00b7 ") : "") +
         "col " + (r.i + 1) + " row " + (r.j + 1) + " \u00b7 " +
-        (!tk ? "not computed" : sc.exact
+        (sc.anchorAll ? "no ballast" : !tk ? "not computed" : sc.exact
           ? "place " + f0(exactOf(r.kg)) + " kg (needs " + f(r.kg, 1) + " kg)"
           : "place " + f0(tk.kg) + " kg = " + blocksTxt(tk.kg) + " (needs " + f0(r.kg) + " kg)") +
+        (an ? " \u00b7 " + anchorTxt(an) : "") +
         " \u00b7 E " + f(r.E, 2) + (r.inHalo ? " \u00b7 in the obstruction halo" : "") +
         (r.exposed ? " \u00b7 exposed " + String(r.exposed).replace(/&/g, "&amp;")
           .replace(/</g, "&lt;") : " \u00b7 shielded") + "</title></rect>";
       /* The tier mass on the point itself, sized to the cell and skipped when
          it would be too small to read. Labels go on top of every rect, so they
          are collected and written after the loop. */
+      /* Anchors (v92): one marker per anchor, spread across the unit. On a
+         ballasted cell they sit in a strip along the top so the mass label
+         still fits underneath; on a fully anchored cell they sit mid-height.
+         Positions are schematic: set out at the racking feet. */
+      var x0c = parseFloat(px(r.x)), y0c = parseFloat(py(r.y));
+      var top = 0;
+      if (an) {
+        var mr = Math.max(1.2, Math.min(3.2, Math.min(cw / (an.n * 2.6), ch * 0.16)));
+        var my = sc.anchorAll ? y0c + ch / 2 : y0c + mr + 1;
+        if (!sc.anchorAll) top = 2 * mr + 1.5;
+        for (var ka = 0; ka < an.n; ka++) {
+          marks += '<circle cx="' + (x0c + cw * (ka + 0.5) / an.n).toFixed(1) + '" cy="' +
+            my.toFixed(1) + '" r="' + mr.toFixed(1) + '" fill="#132229" stroke="#FFFFFF"' +
+            ' stroke-width=".6" pointer-events="none"/>';
+        }
+      }
       if (tk) {
         var txt = f0(sc.exact ? exactOf(r.kg) : tk.kg);
-        var fs = Math.min(ch * 0.72, cw / (txt.length * 0.62 + 0.3));
+        var chL = ch - top;
+        var fs = Math.min(chL * 0.72, cw / (txt.length * 0.62 + 0.3));
         if (fs >= 4.5)
-          labels += '<text x="' + (parseFloat(px(r.x)) + cw / 2).toFixed(1) + '" y="' +
-            (parseFloat(py(r.y)) + ch / 2).toFixed(1) + '" font-size="' + fs.toFixed(1) +
+          labels += '<text x="' + (x0c + cw / 2).toFixed(1) + '" y="' +
+            (y0c + top + chL / 2).toFixed(1) + '" font-size="' + fs.toFixed(1) +
             '" fill="' + tk.ink + '" text-anchor="middle" dominant-baseline="central"' +
             ' pointer-events="none">' + txt + '</text>';
       }
     });
-    o += labels;
+    o += labels + marks;
 
     /* Colour key: one swatch per tier (or per colour band with exact values),
        lightest first, each labelled with the mass it stands for. */
     var by0 = hh + 8, bh0 = 11, nT = key.list.length;
     var sw = Math.min(sc.exact ? 96 : 52, (VB - 4) / nT);
-    key.list.forEach(function (t, k) {
+    if (!sc.anchorAll) key.list.forEach(function (t, k) {
       var x = k * sw;
       o += '<rect x="' + x.toFixed(1) + '" y="' + by0.toFixed(1) + '" width="' +
         (sw - 2).toFixed(1) + '" height="' + bh0 + '" fill="' + t.col +
@@ -6914,8 +7049,16 @@ aeffOut:
         '" font-size="9.5" fill="#4A5F68" text-anchor="middle">' + t.label + '</text>';
     });
     o += '<text x="0" y="' + (by0 - 3).toFixed(1) + '" font-size="9.5" fill="#4A5F68">' +
-      (sc.exact ? "kg to place at each point (exact, rounded up to whole kg; colours are a guide)"
+      (sc.anchorAll ? "full chemical anchor system \u2014 no ballast; pale red = anchors fail"
+        : sc.exact ? "kg to place at each point (exact, rounded up to whole kg; colours are a guide)"
                 : "kg to place at each point (whole " + f0(sc.blockKg) + " kg blocks)") + '</text>';
+    if (hasAnchors) {
+      var ay0 = hh + footBase + 6, aN = sc.recs.filter(function (r) { return r.anchor; });
+      o += '<circle cx="4" cy="' + ay0.toFixed(1) + '" r="3" fill="#132229" stroke="#FFFFFF" stroke-width=".6"/>' +
+        '<text x="12" y="' + (ay0 + 3.3).toFixed(1) + '" font-size="9.5" fill="#4A5F68">' +
+        "chemical anchor \u00b7 " + aN[0].anchor.n + " per anchored unit \u00b7 " + aN.length +
+        " unit" + (aN.length === 1 ? "" : "s") + " anchored \u00b7 positions schematic, set out at the racking feet</text>";
+    }
     o += '<text x="' + VB + '" y="' + (by0 - 3).toFixed(1) +
       '" font-size="9.5" fill="#4A5F68" text-anchor="end">north is up \u00b7 ' + sc.n +
       " points</text>";
@@ -7001,7 +7144,7 @@ aeffOut:
       schedTotal: tiers.reduce(function (a, t) { return a + t.kg * t.n; }, 0),
       uniform: worst ? worst.kg * all.length : 0,
       byRoof: null, roofSet: perRoof, roofFailed: failed,
-      anyInvalid: false, at: new Date()
+      anyInvalid: false, anchorAll: !!S.anchorAll, at: new Date()
     };
   }
 
@@ -7018,14 +7161,23 @@ aeffOut:
     var saving = sc.uniform > 0 ? (1 - sc.schedTotal / sc.uniform) : 0;
     var sel = LAST && isFinite(LAST.requiredKg) ? LAST.requiredKg : NaN;
 
-    var kpi = '<div class="sched-kpi">' +
+    var A = sc.anchors;
+    var anchorKpi = A ? '<div><span>Anchors</span><b>' + A.count + '</b></div>' +
+      '<div><span>Anchor utilisation</span><b class="' + (A.have ? (A.fail ? "g" : "ok") : "g") + '">' +
+      (A.have ? f(A.worst ? A.worst.anchor.util : 0, 2) : "not checked") + '</b></div>' : "";
+    var kpi = sc.anchorAll ? '<div class="sched-kpi">' +
+      '<div><span>Units swept</span><b>' + sc.n + '</b></div>' + anchorKpi +
+      '<div><span>Max N_Ed per anchor</span><b>' + f(A ? A.maxN : 0, 2) + ' kN</b></div>' +
+      '<div><span>Max V_Ed per anchor</span><b>' + f(A ? A.maxV : 0, 2) + ' kN</b></div>' +
+      '<div><span>Ballast</span><b class="ok">none</b></div>' +
+      '</div>' : '<div class="sched-kpi">' +
       '<div><span>Units swept</span><b>' + sc.n + '</b></div>' +
       '<div><span>Governing unit</span><b class="g">' + f0(sc.worst.kg) + ' kg</b></div>' +
       '<div><span>On screen</span><b>' + (isFinite(sel) ? f0(sel) + " kg" : "\u2014") + '</b></div>' +
       '<div><span>Uniform at worst</span><b>' + f(sc.uniform / 1000, 1) + ' t</b></div>' +
       '<div><span>' + schedWord(sc) + ' schedule</span><b class="ok">' + f(sc.schedTotal / 1000, 1) + ' t</b></div>' +
       '<div><span>Saving</span><b class="ok">' + f(100 * saving, 0) + ' %</b></div>' +
-      '</div>';
+      anchorKpi + '</div>';
 
     /* Stepped roof: the two planes are procured, delivered and installed
        separately, so the schedule is reported per roof as well as in total. */
@@ -7142,13 +7294,44 @@ aeffOut:
       'requirement is rounded up to the next block. Set the block mass above, or tick ' +
       '\u201cExact values, no tiers\u201d for each point\u2019s own mass.</p>';
 
+    /* v92: the anchor schedule, for the hybrid's corners or every unit. */
+    var anchorTbl = "";
+    if (A) {
+      var aRows = pointList(sc).filter(function (r) { return r.anchor; }).map(function (r) {
+        var a = r.anchor;
+        return "<tr><td>" + pointWhere(r) + "</td><td>" + (r.j + 1) + "</td><td>" + (r.i + 1) +
+          "</td><td>" + a.n + "</td><td>" + f(a.NEd, 2) + "</td><td>" + f(a.VEd, 2) + "</td><td>" +
+          (a.have ? f(a.util, 2) : "\u2014") + "</td><td class='" +
+          (a.have ? (a.ok ? "fitok" : "fitbad") : "fitbad") + "'>" +
+          (a.have ? (a.ok ? "OK" : "fails") : "not checked") + "</td></tr>";
+      }).join("");
+      anchorTbl = '<div class="sub" style="margin-top:1rem">Chemical anchors</div>' +
+        '<p class="note" style="padding:0 0 .6rem">' + (sc.anchorAll
+          ? "Every unit is anchored and carries no ballast. "
+          : "The hybrid anchors the four corner units of each array part; the field is ballasted. ") +
+        A.count + " anchors on " + A.units + " unit" + (A.units === 1 ? "" : "s") + ", " + A.perUnit +
+        " per unit. " + (A.have
+          ? "N_Rd = " + f(A.NRd, 2) + " kN and V_Rd = " + f(A.VRd, 2) + " kN per anchor" +
+            (A.ref ? " (" + A.ref.replace(/</g, "&lt;") + ")" : "") + ". " +
+            (A.fail ? "<b style=\"color:var(--gov)\">" + A.fail + " unit" + (A.fail === 1 ? "" : "s") +
+              " fail the anchor check.</b>" : "Every anchor passes.")
+          : "<b style=\"color:var(--gov)\">N_Rd and V_Rd are not entered, so the anchors are not checked.</b>") +
+        " Forces are per anchor, with each anchor's wind area capped at its own tributary area " +
+        "(PV2 \u00a74). Marker positions on the plan are schematic.</p>" +
+        '<div class="tw' + (A.units > 12 ? " tall" : "") + '"><table><thead><tr><th>Array</th><th>Row</th>' +
+        '<th>Col</th><th>Anchors</th><th>N_Ed kN</th><th>V_Ed kN</th><th>Utilisation</th><th>Check</th>' +
+        '</tr></thead><tbody>' + aRows + '</tbody></table></div>';
+    }
+    if (sc.anchorAll) tbl = anchorTbl;
+    else tbl += anchorTbl;
+
     host.innerHTML = '<div class="sched-grid"><div>' + kpi + perRoof + warn + tbl + '</div><div>' +
       heatMap(sc) +
       '<div class="tierlegend">' +
       /* One entry per tier, heaviest first like the table: its colour, the
          mass to place, the blocks that make it and how many points take it.
          With exact values, one entry per colour band. */
-      tKey.list.slice().reverse().map(function (t) {
+      (sc.anchorAll ? [] : tKey.list.slice().reverse()).map(function (t) {
         return '<span><i style="background:' + t.col + '"></i>' + (sc.exact
           ? t.label + " kg (" + t.n + ")"
           : f0(t.kg) + " kg \u00b7 " + blocksTxt(t.kg) + " \u00d7 " + t.n) + "</span>";
@@ -7276,7 +7459,11 @@ aeffOut:
     return t || "untitled";
   }
   function layoutLabel() {
-    return S.layout === "duo" ? "duo-pitch (east\u2013west tent)" : "mono-pitch";
+    return (S.layout === "duo" ? "duo-pitch (east\u2013west tent)" : "mono-pitch") +
+      ", " + orientLabel();
+  }
+  function orientLabel() {
+    return S.panelOrient === "portrait" ? "portrait modules" : "landscape modules";
   }
   function arrayRotFromLabel() {
     return S.layout === "duo"
@@ -7287,6 +7474,7 @@ aeffOut:
      the blocks that make it. Exact values: one row per point, in placement
      order, with the mass rounded up to the next whole kilogram. */
   function reportBallastTable(SX, navyTable) {
+    if (SX.anchorAll) return;
     if (SX.exact) {
       navyTable(["Array", "Row", "Column", "Roof zone", "Mass to place"],
         pointList(SX).map(function (rec) {
@@ -7304,6 +7492,57 @@ aeffOut:
           f(t.kg * t.n / 1000, 2) + " t", zs || "\u2014"];
       }).concat([["All", String(SX.n), "\u2014", "\u2014", f(SX.schedTotal / 1000, 2) + " t", ""]]),
       [800, 900, 1600, 1800, 1400, 3580]);
+  }
+  /* v92: the chemical anchors in the Word reports \u2014 the hybrid's corner
+     units or, under the full anchor system, every unit. K carries the report's
+     own writers (subhead, why, resultBox, navyTable, callout). */
+  function reportAnchors(SX, K) {
+    var A = SX && SX.anchors;
+    if (!A) return;
+    K.subhead("Chemical anchors");
+    K.resultBox([
+      ["System", SX.anchorAll ? "Full chemical anchor system \u2014 every unit anchored, no ballast"
+                              : "Hybrid \u2014 array-corner units anchored, field ballasted", true],
+      ["Anchors", A.count + " in total, " + A.perUnit + " per anchored unit, on " + A.units +
+        " unit" + (A.units === 1 ? "" : "s"), true],
+      ["Anchor", A.ref ? A.ref : "not recorded"],
+      ["Design resistance per anchor", A.have
+        ? "N_Rd = " + f(A.NRd, 2) + " kN, V_Rd = " + f(A.VRd, 2) + " kN" : "not entered"],
+      ["Largest demand per anchor", "N_Ed = " + f(A.maxN, 2) + " kN, V_Ed = " + f(A.maxV, 2) + " kN"],
+      ["Highest utilisation", A.have ? f(A.worst ? A.worst.anchor.util : 0, 2) +
+        (A.fail ? "  \u2014  " + A.fail + " unit" + (A.fail === 1 ? "" : "s") + " FAIL" : "  \u2014  all pass")
+        : "not checked"]
+    ]);
+    K.why("Each anchor is a fastener, so its effective wind area is capped at the area " +
+      "tributary to it (SEAOC PV2 \u00a74), with no load sharing between supports. The unit's " +
+      "force at that coefficient is shared equally between its anchors: N_Ed = (\u03b3_W F_v \u2212 " +
+      "\u03b3_G G_s) / n in tension and V_Ed = \u03b3_W F_h / n in shear, with no reliance on friction. " +
+      "Each anchor is checked against its design resistances from the ETA with the EN 1992-4 " +
+      "interaction (N_Ed/N_Rd)^1.5 + (V_Ed/V_Rd)^1.5 \u2264 1. Set the anchors out at the racking " +
+      "feet; the marker positions in the placement figure are schematic. The roof slab or deck " +
+      "receiving the anchors is not checked here.");
+    if (!A.have)
+      K.callout("The anchor design resistances are not entered, so the anchors are not checked. " +
+        "Enter N_Rd and V_Rd from the anchor's ETA for the actual substrate before issue.", "fail");
+    else if (A.fail)
+      K.callout(A.fail + " anchored unit" + (A.fail === 1 ? " fails" : "s fail") + " the anchor " +
+        "check. Add anchors per unit or use a stronger anchor before issue.", "fail");
+    K.navyTable(["Array", "Row", "Column", "Anchors", "N_Ed / anchor", "V_Ed / anchor", "Utilisation"],
+      pointList(SX).filter(function (r) { return r.anchor; }).map(function (r) {
+        var a = r.anchor;
+        return [pointWhere(r), String(r.j + 1), String(r.i + 1), String(a.n),
+          f(a.NEd, 2) + " kN", f(a.VEd, 2) + " kN",
+          a.have ? f(a.util, 2) + (a.ok ? "" : " FAIL") : "\u2014"];
+      }), [2680, 800, 900, 1000, 1600, 1600, 1500]);
+  }
+  /* Open items the anchors leave, for both reports. */
+  function anchorOpenItems(SX) {
+    var A = SX && SX.anchors, out = [];
+    if (!A) return out;
+    if (!A.have) out.push("Chemical anchors are not checked: N_Rd and V_Rd are not entered.");
+    else if (A.fail) out.push("Chemical anchors fail on " + A.fail + " unit" + (A.fail === 1 ? "" : "s") + ".");
+    if (!A.ref) out.push("The chemical anchor and its ETA are not recorded.");
+    return out;
   }
   function zoneName(z) {
     /* PV2-2017 / ASCE 7-16 calls the deep-interior zone 1-prime, not 0. */
@@ -7603,6 +7842,7 @@ aeffOut:
       subhead("PV installation");
       navyTable(["Item", "Value"], [
         ["Layout", i.layout === "duo" ? "Duo-pitch, east–west" : "Mono-pitch"],
+        ["Panel orientation", orientLabel()],
         ["Panel tilt", f(i.omega, 1) + "°"],
         ["Module mass", f(i.moduleKg, 1) + " kg"],
         ["Ballast points", SX ? String(SX.n) : "—"],
@@ -7614,13 +7854,17 @@ aeffOut:
       heading("Ballast requirement");
       if (SX && issued) {
         var ks = SX.recs.map(function (x) { return x.kg; }).filter(isFinite);
-        resultBox([
+        resultBox(SX.anchorAll ? [["Ballast", "none \u2014 full chemical anchor system", true],
+          ["Anchored units", String(SX.n), true]] : [
           ["Total ballast, all panels", f(SX.schedTotal / 1000, 2) + " t", true],
           ["Ballast points", String(SX.n), true],
           ["Mass per point", f0(Math.min.apply(null, ks)) + " kg to " +
             f0(Math.max.apply(null, ks)) + " kg"]
         ]);
-        why(SX.exact
+        why(SX.anchorAll
+          ? "Every unit is chemically anchored, so no ballast is placed. The anchors are scheduled " +
+            "below."
+          : SX.exact
           ? "Each ballast point has been sized individually for its position on the roof. Place " +
             "the mass listed for each point, rounded up to the next whole kilogram, at the " +
             "position shown in the placement figure. Do not ballast the whole roof at an average mass."
@@ -7629,6 +7873,8 @@ aeffOut:
             "for each tier at the points shown in the placement figure. Do not ballast the whole " +
             "roof at an average mass.");
         reportBallastTable(SX, navyTable);
+        reportAnchors(SX, { subhead: subhead, why: why, resultBox: resultBox,
+          navyTable: navyTable, callout: callout });
         if (SX.roofSet && SX.roofSet.length > 1) {
           subhead("By roof");
           navyTable(["Roof", "Plan", "Points", "Ballast"],
@@ -7693,8 +7939,9 @@ aeffOut:
         open.push("A non-standard return period is used without a recorded acceptance.");
       if (!S.airGapConfirmed) open.push("The minimum air gaps are not confirmed.");
       if (allow == null) open.push("Roof capacity is not verified.");
-      if (!String(S.muRef || "").trim()) open.push("Friction is not confirmed by test.");
+      if (!String(S.muRef || "").trim() && !S.anchorAll) open.push("Friction is not confirmed by test.");
       if (!String(S.checkedBy || "").trim()) open.push("The calculation has not been checked.");
+      anchorOpenItems(SX).forEach(function (t) { open.push(t); });
       if (open.length) {
         subhead("Open items at the date of this summary");
         open.forEach(function (t) { bullet(t); });
@@ -7839,8 +8086,9 @@ aeffOut:
     else if (S.airGapConfirmed && (gpGap === null || gr === null))
       openItems.push("Air gap is not dimensioned (perimeter and row gap are both required).");
     figFails.forEach(function (c) { openItems.push("Outside " + (r.c17 ? "Figure 29.4-7" : "Figure 29.9-1") + ": " + c.text); });
-    if (r.slide && !r.slide.referenced)
+    if (r.slide && !r.slide.referenced && !S.anchorAll)
       openItems.push("Friction has no ASTM D1894 (or equivalent) reference; sliding shall not govern an issued result.");
+    anchorOpenItems(SCHED && SCHED.n ? SCHED : null).forEach(function (t) { openItems.push(t); });
 
     var seRes = null;
     (function () {
@@ -7937,10 +8185,13 @@ aeffOut:
         ? "PV2-2017 Example I: γ_E on the perimeter only; interior modules at E = 1.00."
         : (S.eSlideMode === "panel" ? "Conservative. Panel E applied to every module." : "Typed override."),
       false));
-    decRows.push(dec("Hybrid corner pins",
-      S.pinCorners ? "on — array-corner units attached" : "off — fully ballasted",
-      S.pinCorners
-        ? "Banks 2013 / IronRidge BRM / KDS SA. This unit’s uplift is zero only if it is an array corner."
+    decRows.push(dec("Mechanical attachment",
+      S.anchorAll ? "full chemical anchor system — every unit anchored, no ballast"
+        : S.pinCorners ? "hybrid — array-corner units anchored" : "none — fully ballasted",
+      S.anchorAll
+        ? "Anchors take uplift and sliding at every unit. Each anchor is designed to its own tributary area (PV2 §4) against the ETA resistances."
+        : S.pinCorners
+        ? "Banks 2013 / IronRidge BRM / KDS SA. This unit’s uplift is zero only if it is an array corner. Corner anchors are designed to their own tributary area (PV2 §4)."
         : "All units ballasted, including corners.",
       false));
     if (r.stepped) {
@@ -8090,8 +8341,17 @@ aeffOut:
        the text sent the reader to "Section 4" for the worked calculation, which
        the body printed as Section 3. */
     heading("Summary of results");
-    subhead("Ballast required for the installation");
-    if (SX) {
+    subhead(SX && SX.anchorAll ? "Attachment required for the installation"
+                               : "Ballast required for the installation");
+    if (SX && SX.anchorAll) {
+      resultBox([["Ballast", "none \u2014 full chemical anchor system", true],
+          ["Anchored units", String(SX.n), true]]);
+      why("Every unit on the roof is chemically anchored and carries no ballast. The anchors " +
+        "take uplift and sliding at each unit; each one has been checked at its own position, " +
+        "by the method worked in full for the design unit in Section 4.");
+      reportAnchors(SX, { subhead: subhead, why: why, resultBox: resultBox,
+        navyTable: navyTable, callout: callout });
+    } else if (SX) {
       var sxKgs = SX.recs.map(function (x) { return x.kg; }).filter(isFinite);
       var sxLo = sxKgs.length ? Math.min.apply(null, sxKgs) : NaN;
       var sxHi = sxKgs.length ? Math.max.apply(null, sxKgs) : NaN;
@@ -8114,6 +8374,8 @@ aeffOut:
           "kilogram." : " Each requirement is rounded up to whole " + f0(SX.blockKg) +
           " kg ballast blocks, which groups the points into the tiers below."));
       reportBallastTable(SX, navyTable);
+      reportAnchors(SX, { subhead: subhead, why: why, resultBox: resultBox,
+        navyTable: navyTable, callout: callout });
     } else {
       callout("The installation schedule could not be produced, so this section carries the " +
         "design-unit result only. Run \u201cSweep every unit\u201d and re-export before issue.", "fail");
@@ -8143,15 +8405,41 @@ aeffOut:
       ["Rail eccentricity", r.rail ? (f0(r.rail.kg) + " kg  (" + r.rail.critical + ")") : "not checked"]
     ]);
     if (r.pinned) {
-      para("This design unit sits on an array corner and is mechanically attached (hybrid). Uplift on this unit is taken as zero. Field units remain ballasted.");
+      para(r.anchorAll
+        ? "Every unit is chemically anchored (full anchor system), so this design unit carries no ballast. Its anchors are designed below."
+        : "This design unit sits on an array corner and is mechanically attached (hybrid). Uplift on this unit is taken as zero. Field units remain ballasted. Its anchors are designed below.");
+      var an = r.anchor;
+      if (an) {
+        subhead("Chemical anchors on the design unit");
+        navyTable(["Step", "Value"], [
+          ["Anchors on the unit, n", String(an.n)],
+          ["Area tributary to one anchor", f(an.Atrib, 3) + " m\u00b2  (PV2 \u00a74 fastener rule, no load sharing)"],
+          ["Normalised area A_n", f(an.An, 3)],
+          ["(GC_rn)nom at that area", f(an.nom, 3)],
+          ["GC_rn for the anchor", f(an.GCrn, 3)],
+          ["p = q \u00b7 GC_rn", f(an.p, 3) + " kPa"],
+          ["F on the unit = p \u00b7 A_trib", f(an.F, 3) + " kN  \u2192  F_v = " + f(an.Fv, 3) +
+            " kN, F_h = " + f(an.Fh, 3) + " kN"],
+          ["N_Ed = (\u03b3_W F_v \u2212 \u03b3_G G_s) / n", "(" + f(r.gW, 2) + " \u00d7 " + f(an.Fv, 3) +
+            " \u2212 " + f(r.gG, 2) + " \u00d7 " + f(r.Gs, 3) + ") / " + an.n + " = " + f(an.NEd, 3) + " kN"],
+          ["V_Ed = \u03b3_W F_h / n", f(r.gW, 2) + " \u00d7 " + f(an.Fh, 3) + " / " + an.n + " = " +
+            f(an.VEd, 3) + " kN"],
+          ["Design resistance (ETA)", an.have ? "N_Rd = " + f(an.NRd, 2) + " kN, V_Rd = " + f(an.VRd, 2) +
+            " kN" + (an.ref ? "  \u2014  " + an.ref : "") : "not entered"],
+          ["Utilisation", an.have ? "N " + f(an.uN, 2) + ", V " + f(an.uV, 2) + ", interaction " +
+            f(an.uI, 2) + (an.ok ? "  \u2014  OK" : "  \u2014  FAILS") : "not checked"]
+        ], [4200, 5880]);
+      }
     }
 
     if (zMat && zMat.length === 4) {
       subhead("Required ballast by roof zone");
       why("The design unit occupies " + zoneName(r.zone) + ". This table re-runs the same unit " +
         "with only its roof zone changed, to show what each zone is worth. It is a comparison, " +
-        "not the placement \u2014 the " + (SCHED && SCHED.exact ? "point masses" : "tiers") +
-        " above are the placement, because they also carry " +
+        "not the placement \u2014 the " + (SCHED && SCHED.anchorAll
+          ? "anchor schedule above is the placement, because it also carries "
+          : (SCHED && SCHED.exact ? "point masses" : "tiers") +
+            " above are the placement, because they also carry ") +
         "each point's own edge exposure and effective wind area.");
       navyTable(
         ["Roof zone", "Occupancy used", "\u03b3_E", "(GC_rn)nom", "Uplift", "Sliding / unit", "Required / panel"],
@@ -9251,7 +9539,13 @@ aeffOut:
         "this browser, so this document carries the design-unit result only and is NOT a complete " +
         "ballast calculation. Run \u201cSweep every unit\u201d and re-export before issue.", "fail");
     }
-    if (SCHED && SCHED.n) {
+    if (SCHED && SCHED.n && SCHED.anchorAll) {
+      subhead("Ballast schedule");
+      para("None. Every unit is chemically anchored and carries no ballast; the anchors are " +
+        "scheduled in Section 1.");
+      /* The placement figure (anchor positions) is spliced in here. */
+      doc._ballastAnchor = doc.body.length;
+    } else if (SCHED && SCHED.n) {
       subhead("Ballast schedule");
       if (SCHED_STALE)
         callout("This schedule was swept before the last input change and may not match the " +
@@ -9614,12 +9908,20 @@ aeffOut:
       if (hp) {
         fig++;
         heatFig = fig;
-        blocks.zone.push(cap("Figure " + fig + "    Ballast placement \u2014 the " +
+        blocks.zone.push(cap("Figure " + fig + (SCHED && SCHED.anchorAll
+          ? "    Anchor placement \u2014 every unit chemically anchored, no ballast. Each " +
+            "marker is one anchor; positions are schematic."
+          : "    Ballast placement \u2014 the " +
           (SCHED && SCHED.exact ? "" : "tier ") + "mass to place " +
           "at every point, green lightest to red heaviest, one scale for the whole job." +
+          (SCHED && SCHED.anchors ? " Black markers are the chemical anchors on the corner " +
+            "units; positions are schematic." : "")) +
           (SCHED && SCHED.byRoof ? " Heavy outline marks points on the upper block." : "")));
         blocks.zone.push(K.para(hp, { align: "center", spaceAfter: 4 }));
-        blocks.zone.push(note(SCHED && SCHED.exact
+        blocks.zone.push(note(SCHED && SCHED.anchorAll
+          ? "Set the anchors out at the racking feet to the racking supplier's layout. The " +
+            "anchor table gives the forces and utilisation at every unit; a pale red unit fails."
+          : SCHED && SCHED.exact
           ? "Each point is labelled with the mass to place there, rounded up to the next whole " +
             "kilogram. The colours are a guide to the pattern only; the number is the instruction. " +
             "Where a point is too small to carry its number, read it from the point table."
@@ -9651,8 +9953,9 @@ aeffOut:
 
       /* Section 5 — point back rather than repeat */
       if (heatFig)
-        blocks.sched.push(note("The placement of " + (SCHED && SCHED.exact ? "these masses" : "these tiers") +
-          " is shown in Figure " + heatFig + "."));
+        blocks.sched.push(note((SCHED && SCHED.anchorAll ? "The anchor positions are"
+          : "The placement of " + (SCHED && SCHED.exact ? "these masses" : "these tiers") + " is") +
+          " shown in Figure " + heatFig + "."));
 
       function splice(at, bits) {
         if (typeof at !== "number" || !bits.length) return;
@@ -10537,13 +10840,13 @@ aeffOut:
     "topoH","topoLu","topoLd","topoX","topoZ",
     "roofSDL","gapPerim","gapRow",
     "railI","railZ","railFy","railE","railGM","railsPerPanel","footSpacing","deflLimit",
-    "ballastRho","trayCover","blockKg"];
+    "ballastRho","trayCover","blockKg","anchorsPerPoint","anchorNRd","anchorVRd"];
   var SELF = ["codeBasis","edgeModel","dafMode","unitRoof","layout","windBasis","terrain","rhoMode","asceUnits","asceExposure","zoneMode","zoneManual",
-    "eMode","zoneArrMode","zoneArr","eSlideMode","combo","ccClass","framCondition","topoType","muLib","deflectorMode","gammaPMode","sharePreset"];
+    "eMode","zoneArrMode","zoneArr","eSlideMode","combo","ccClass","framCondition","topoType","muLib","deflectorMode","gammaPMode","sharePreset","panelOrient"];
   var CHKF = ["useReturnPeriod","zeInclParapet","showConstants","airGapConfirmed","obtuseCorner",
-    "capFastener","loadShareConfirmed","railCheck","framingCheck","computeTopo","railsTied","deflectorOn","pinCorners","railPeel","stepped","steppedAccept","schedExact"];
+    "capFastener","loadShareConfirmed","railCheck","framingCheck","computeTopo","railsTied","deflectorOn","pinCorners","railPeel","stepped","steppedAccept","schedExact","anchorAll"];
   var TXTF = ["deflectorRef","muRef","tunnelRef","byWhom","checkedBy","revision","client","rpJustify",
-    "roofSDLRef","terrainRef","eJustify","shareRef","screeningRef","surfaceType","railName","kfJustify"];
+    "roofSDLRef","terrainRef","eJustify","shareRef","screeningRef","surfaceType","railName","kfJustify","anchorRef"];
   var DIRS = ["N","S","E","W"];
 
   function inferGridFromMetres() {
@@ -10649,6 +10952,22 @@ aeffOut:
     if (S.selRow >= 1) put("selRow", S.selRow);
   }
 
+  /* v92: turning the modules. Landscape puts the module's short side up the
+     slope (the chord L_p) and its long side along the row (the tributary
+     length); portrait swaps them. The tributary width follows the chord, and
+     the framing span and width follow where they were set to the module's
+     sides. h2 is recomputed from the new chord further down read(). */
+  function applyOrientation() {
+    var oldLp = pnum(S.lp, 1.134), oldL = pnum(S.tribL, 2.278);
+    S.lp = oldL;
+    S.tribL = oldLp;
+    if (Math.abs(pnum(S.tribW, oldLp) - oldLp) < 1e-6) S.tribW = S.lp;
+    if (Math.abs(pnum(S.framSpan, 0) - oldL) < 1e-6) S.framSpan = S.tribL;
+    if (Math.abs(pnum(S.framTribW, 0) - oldLp) < 1e-6) S.framTribW = S.tribW;
+    ["lp", "tribL", "tribW", "framSpan", "framTribW"].forEach(function (k) {
+      if (el(k)) el(k).value = S[k];
+    });
+  }
   function read() {
     S.client = el("client").value;
     S.project = el("proj").value;
@@ -10661,7 +10980,9 @@ aeffOut:
     ensureArrays();
     syncActiveFromS();
     var prevLayout = S.layout;
+    var prevOrient = S.panelOrient;
     SELF.forEach(function (k) { S[k] = el(k).value; });
+    if (prevOrient && S.panelOrient !== prevOrient) applyOrientation();
     if (S.sharePreset && E.SHARE_PRESET && E.SHARE_PRESET[S.sharePreset] && E.SHARE_PRESET[S.sharePreset].n != null) {
       S.loadShare = E.SHARE_PRESET[S.sharePreset].n;
       if (el("loadShare") && document.activeElement !== el("loadShare")) el("loadShare").value = S.loadShare;
@@ -10946,6 +11267,7 @@ aeffOut:
           "Duo: two opposing pitches on a flat roof; default is panels facing east–west. Interior units: γ_duo = 0.85 on GC_rn (screening). Edge and corner: no cut.";
     }
     show('[data-cf="1"]',      S.capFastener);
+    show('[data-anch="1"]',    !!(S.pinCorners || S.anchorAll));
     show('[data-rail="1"]',    S.railCheck);
     show('[data-fram="1"]',    S.framingCheck);
     show('[data-cc="1"]',      S.ccClass === "cc1" || S.ccClass === "cc3");
@@ -11095,7 +11417,8 @@ aeffOut:
         cell("GC_rn", sv(f(r.GCrn, 3))) +
         (r.deflector && r.deflector.applied ? cell("γ_def", sv(f(r.deflector.value, 2))) : "") +
         (r.slideMix ? cell("E_eq sliding", sv(f(r.slideMix.Eeq, 3) + " · Ex. I mix")) : "") +
-        (r.pinned ? cell("hybrid pin", sv("array corner attached")) : "") +
+        (r.pinned ? cell(r.anchorAll ? "chemical anchors" : "hybrid pin",
+          sv(r.anchor ? anchorTxt(r.anchor) : "array corner attached")) : "") +
         (r.duo
           ? (r.duo.applied
             ? cell("γ_duo", sv("0.85 · saves ~" + f0(r.duo.saveKg) + " kg vs mono at this tilt"))
