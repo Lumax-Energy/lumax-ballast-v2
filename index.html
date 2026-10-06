@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="format-detection" content="telephone=no"/>
-<title>Ballast — rooftop PV ballast design · v92</title>
+<title>Ballast — rooftop PV ballast design · v93</title>
 <style>
 :root{
   --paper:#EDF0F1; --panel:#F8FAFA; --sunk:#E3E8E9;
@@ -576,7 +576,7 @@ tbody tr:last-child td{border-bottom:0}
       <span class="chip">rational design</span>
       <span class="chip">ASTM D1894</span>
       <span class="chip" id="chipCode">PV2-2017 basis</span>
-      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v92 · engine 4.4.0</span>
+      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v93 · engine 4.4.1</span>
     </div>
     <div class="tools">
       <button type="button" id="newBtn" class="go" title="Start a blank project. Clears the name, every evidence reference and all inherited assumptions.">New project</button>
@@ -1059,9 +1059,13 @@ tbody tr:last-child td{border-bottom:0}
         <label class="f" title="Design shear resistance of ONE anchor, from its ETA for the same installation."><span>V<sub>Rd</sub> <i>per anchor, kN</i></span><input id="anchorVRd"/></label>
         <label class="f"><span>Anchor &amp; ETA <i>reference</i></span><input id="anchorRef"/></label>
       </div>
-      <p class="note" data-anch="1">Each anchor is a fastener, so its wind area is capped at its own
-        tributary area (PV2 §4) — no load sharing. Per anchor: N<sub>Ed</sub> = (γ<sub>W</sub>F<sub>v</sub> −
-        γ<sub>G</sub>G<sub>s</sub>) / n and V<sub>Ed</sub> = γ<sub>W</sub>F<sub>h</sub> / n, friction not relied on.
+      <p class="note" data-anch="1">Anchors sit on the two rails under the module's short sides, half on
+        each: along the row in portrait, up the slope in landscape. Each anchor is a fastener, so its wind
+        area is capped at its own tributary area (PV2 §4) — no load sharing. Per anchor:
+        N<sub>Ed</sub> = c·(γ<sub>W</sub>F<sub>v</sub> − γ<sub>G</sub>G<sub>s</sub>) and
+        V<sub>Ed</sub> = c·γ<sub>W</sub>F<sub>h</sub>, where c is the most loaded anchor's share — the rail
+        share (centre of pressure in portrait, half in landscape, all of it where edge peeling applies)
+        over the anchors on that rail. Friction is not relied on.
         Checked against N<sub>Rd</sub> and V<sub>Rd</sub> from the anchor's ETA with the EN 1992-4
         interaction (N<sub>Ed</sub>/N<sub>Rd</sub>)<sup>1.5</sup> + (V<sub>Ed</sub>/V<sub>Rd</sub>)<sup>1.5</sup> ≤ 1.
         The roof slab or deck must be checked for the anchor loads separately.</p>
@@ -1349,7 +1353,7 @@ tbody tr:last-child td{border-bottom:0}
   var SANS_CR_COEFF = 1.36;
   /* SANS 10160-3 Table 4 — air density vs altitude (kg/m³). Linear interpolation. */
   var SANS_RHO_TABLE = [[0, 1.20], [500, 1.12], [1000, 1.06], [1500, 1.00], [2000, 0.94]];
-  var ENGINE_VERSION = "4.4.0";
+  var ENGINE_VERSION = "4.4.1";
   var SCHEMA_VERSION = 4;
 
   /* ---- ASCE 7 exposure constants (Table 26.9-1) --------------------------- */
@@ -2824,22 +2828,42 @@ tbody tr:last-child td{border-bottom:0}
       if (rail) { rail.peelKg = peel.kg; rail.peelRole = peel.role; }
     }
 
-    /* --- 4. chemical anchors (v92) -------------------------------------------
+    /* --- 4. chemical anchors (v92, rails v93) --------------------------------
        Anchored units: the hybrid's array corners, or every unit under the full
        anchor system. Each anchor is a fastener, so PV2 §4 caps its effective
        wind area at the area tributary to it (the unit's tributary area over the
        anchors on the unit), with no load sharing and no one-third widening. The
-       smaller area gives the higher coefficient. The unit's force at that
-       coefficient is shared equally between its anchors:
-         tension per anchor  N_Ed = (γ_W·F_v − γ_G·G_s) / n
-         shear per anchor    V_Ed = γ_W·F_h / n      (friction not relied on)
+       smaller area gives the higher coefficient.
+
+       The anchors sit on the two rails under the module's SHORT sides, half on
+       each. Portrait: the short sides are the low and high edges, so the rails
+       run along the row at x1 and x2 along the chord and the centre of pressure
+       e decides which rail takes more. Landscape: the short sides are the east
+       and west ends, so the rails run up the slope and share equally. Where the
+       peeling case applies (array edge or corner, PV2-2017 / Banks), the whole
+       unit's force goes to one rail. Along a rail the anchors share equally.
+       c is the share of the unit's net force on the most loaded anchor:
+         tension per anchor  N_Ed = c · (γ_W·F_v − γ_G·G_s)
+         shear per anchor    V_Ed = c · γ_W·F_h      (friction not relied on)
        checked against the design resistances N_Rd and V_Rd of one anchor from
        its ETA for the actual substrate, with the EN 1992-4 Eq. (7.54)
        interaction (N_Ed/N_Rd)^1.5 + (V_Ed/V_Rd)^1.5 ≤ 1. The slab or deck
        that receives the anchors is outside this check. */
     var anchor = null;
     if (pinned) {
-      var nA = Math.max(1, Math.round(num(i.anchorsPerPoint, 2)));
+      var nAin = Math.max(1, Math.round(num(i.anchorsPerPoint, 2)));
+      var nA = Math.max(2, 2 * Math.ceil(nAin / 2));
+      if (nA !== nAin)
+        warnings.push("Anchors per unit rounded up from " + nAin + " to " + nA +
+          " so each of the two rails carries the same number.");
+      var perRail = nA / 2;
+      var railsAlongRow = i.panelOrient === "portrait";
+      var eA = clamp(num(i.eccen, 0.5), 0, 1), x1A = clamp(num(i.x1, 0.1), 0, 1),
+          x2A = clamp(num(i.x2, 0.9), 0, 1);
+      var hiA = x2A - x1A > 1e-6 ? clamp((eA - x1A) / (x2A - x1A), 0, 1) : 0.5;
+      var peelA = !!(i.railPeel && (roleU.corner || roleU.edge));
+      var railShare = peelA ? 1 : (railsAlongRow ? Math.max(hiA, 1 - hiA) : 0.5);
+      var cA = railShare / perRail;
       var AtA = Atrib / nA;
       var AnA = normArea(AtA, Lb);
       var nomA = gcrnNom(i.omega, zone, i.lp, AnA, { basis: basis, A_ft2: AtA / (FT * FT) });
@@ -2847,14 +2871,15 @@ tbody tr:last-child td{border-bottom:0}
       var FA = q * GCrnA * Atrib;
       var FvA = FA * Math.cos(w);
       var FhA = (defOn ? FA / dDef.value : FA) * Math.sin(w) * (1 + defDrag);
-      var NEd = Math.max(0, gW * FvA - gG * Gs) / nA;
-      var VEd = gW * FhA / nA;
+      var NEd = Math.max(0, cA * (gW * FvA - gG * Gs));
+      var VEd = cA * gW * FhA;
       var NRd = num(i.anchorNRd, 0), VRd = num(i.anchorVRd, 0);
       var haveR = NRd > 0 && VRd > 0;
       var uN = haveR ? NEd / NRd : NaN, uV = haveR ? VEd / VRd : NaN;
       var uI = haveR ? Math.pow(uN, 1.5) + Math.pow(uV, 1.5) : NaN;
       anchor = {
-        n: nA, Atrib: AtA, An: AnA, nom: nomA.value, GCrn: GCrnA, p: q * GCrnA,
+        n: nA, perRail: perRail, rails: railsAlongRow ? "row" : "slope", railShare: railShare,
+        peel: peelA, c: cA, Atrib: AtA, An: AnA, nom: nomA.value, GCrn: GCrnA, p: q * GCrnA,
         F: FA, Fv: FvA, Fh: FhA, NEd: NEd, VEd: VEd, NRd: NRd, VRd: VRd,
         have: haveR, uN: uN, uV: uV, uI: uI,
         util: haveR ? Math.max(uN, uV, uI) : NaN,
@@ -7007,29 +7032,41 @@ aeffOut:
       /* The tier mass on the point itself, sized to the cell and skipped when
          it would be too small to read. Labels go on top of every rect, so they
          are collected and written after the loop. */
-      /* Anchors (v92): one marker per anchor, spread across the unit. On a
-         ballasted cell they sit in a strip along the top so the mass label
-         still fits underneath; on a fully anchored cell they sit mid-height.
-         Positions are schematic: set out at the racking feet. */
+      /* Anchors (v93): on the two rails under the module's short sides. In
+         portrait the rails run along the row near the top and bottom of the
+         cell; in landscape they run up the slope near its left and right ends.
+         Each rail is drawn as a line with its anchors spaced evenly along it.
+         The label sits between the rails. Positions along a rail are
+         schematic: set out at the rail feet. */
       var x0c = parseFloat(px(r.x)), y0c = parseFloat(py(r.y));
-      var top = 0;
+      var padX = 0, padY = 0;
       if (an) {
-        var mr = Math.max(1.2, Math.min(3.2, Math.min(cw / (an.n * 2.6), ch * 0.16)));
-        var my = sc.anchorAll ? y0c + ch / 2 : y0c + mr + 1;
-        if (!sc.anchorAll) top = 2 * mr + 1.5;
-        for (var ka = 0; ka < an.n; ka++) {
-          marks += '<circle cx="' + (x0c + cw * (ka + 0.5) / an.n).toFixed(1) + '" cy="' +
-            my.toFixed(1) + '" r="' + mr.toFixed(1) + '" fill="#132229" stroke="#FFFFFF"' +
-            ' stroke-width=".6" pointer-events="none"/>';
-        }
+        var row = an.rails === "row", pr = an.perRail || Math.max(1, an.n / 2);
+        var along = row ? cw : ch, across = row ? ch : cw;
+        var mr = Math.max(1.2, Math.min(3.2, Math.min(along / (pr * 2.6), across * 0.13)));
+        var inset = Math.max(mr + 0.8, across * 0.12);
+        [inset, across - inset].forEach(function (off) {
+          var lx1 = row ? x0c + 0.5 : x0c + off, ly1 = row ? y0c + off : y0c + 0.5;
+          var lx2 = row ? x0c + cw - 0.5 : x0c + off, ly2 = row ? y0c + off : y0c + ch - 0.5;
+          marks += '<line x1="' + lx1.toFixed(1) + '" y1="' + ly1.toFixed(1) + '" x2="' +
+            lx2.toFixed(1) + '" y2="' + ly2.toFixed(1) + '" stroke="#132229" stroke-width=".9"' +
+            ' stroke-opacity=".55" pointer-events="none"/>';
+          for (var ka = 0; ka < pr; ka++) {
+            var t = along * (ka + 0.5) / pr;
+            marks += '<circle cx="' + (row ? x0c + t : x0c + off).toFixed(1) + '" cy="' +
+              (row ? y0c + off : y0c + t).toFixed(1) + '" r="' + mr.toFixed(1) +
+              '" fill="#132229" stroke="#FFFFFF" stroke-width=".6" pointer-events="none"/>';
+          }
+        });
+        if (row) padY = inset + mr + 0.6; else padX = inset + mr + 0.6;
       }
       if (tk) {
         var txt = f0(sc.exact ? exactOf(r.kg) : tk.kg);
-        var chL = ch - top;
-        var fs = Math.min(chL * 0.72, cw / (txt.length * 0.62 + 0.3));
+        var chL = ch - 2 * padY, cwL = cw - 2 * padX;
+        var fs = Math.min(chL * 0.72, cwL / (txt.length * 0.62 + 0.3));
         if (fs >= 4.5)
           labels += '<text x="' + (x0c + cw / 2).toFixed(1) + '" y="' +
-            (y0c + top + chL / 2).toFixed(1) + '" font-size="' + fs.toFixed(1) +
+            (y0c + ch / 2).toFixed(1) + '" font-size="' + fs.toFixed(1) +
             '" fill="' + tk.ink + '" text-anchor="middle" dominant-baseline="central"' +
             ' pointer-events="none">' + txt + '</text>';
       }
@@ -7056,8 +7093,9 @@ aeffOut:
       var ay0 = hh + footBase + 6, aN = sc.recs.filter(function (r) { return r.anchor; });
       o += '<circle cx="4" cy="' + ay0.toFixed(1) + '" r="3" fill="#132229" stroke="#FFFFFF" stroke-width=".6"/>' +
         '<text x="12" y="' + (ay0 + 3.3).toFixed(1) + '" font-size="9.5" fill="#4A5F68">' +
-        "chemical anchor \u00b7 " + aN[0].anchor.n + " per anchored unit \u00b7 " + aN.length +
-        " unit" + (aN.length === 1 ? "" : "s") + " anchored \u00b7 positions schematic, set out at the racking feet</text>";
+        "chemical anchor on a rail \u00b7 " + aN[0].anchor.n + " per anchored unit, " +
+        aN[0].anchor.perRail + " on each rail under the module\u2019s short sides \u00b7 " + aN.length +
+        " unit" + (aN.length === 1 ? "" : "s") + " anchored \u00b7 set out at the rail feet</text>";
     }
     o += '<text x="' + VB + '" y="' + (by0 - 3).toFixed(1) +
       '" font-size="9.5" fill="#4A5F68" text-anchor="end">north is up \u00b7 ' + sc.n +
@@ -7316,8 +7354,12 @@ aeffOut:
             (A.fail ? "<b style=\"color:var(--gov)\">" + A.fail + " unit" + (A.fail === 1 ? "" : "s") +
               " fail the anchor check.</b>" : "Every anchor passes.")
           : "<b style=\"color:var(--gov)\">N_Rd and V_Rd are not entered, so the anchors are not checked.</b>") +
-        " Forces are per anchor, with each anchor's wind area capped at its own tributary area " +
-        "(PV2 \u00a74). Marker positions on the plan are schematic.</p>" +
+        " Anchors sit on the two rails under the module\u2019s short sides (" +
+        (A.worst && A.worst.anchor.rails === "slope" || (!A.worst && S.panelOrient !== "portrait")
+          ? "up the slope, landscape" : "along the row, portrait") + "). Forces are for the most loaded " +
+        "anchor on each unit; edge and corner units take the peeling case, with the whole unit on one " +
+        "rail. Each anchor's wind area is capped at its own tributary area (PV2 \u00a74). Positions " +
+        "along a rail are schematic.</p>" +
         '<div class="tw' + (A.units > 12 ? " tall" : "") + '"><table><thead><tr><th>Array</th><th>Row</th>' +
         '<th>Col</th><th>Anchors</th><th>N_Ed kN</th><th>V_Ed kN</th><th>Utilisation</th><th>Check</th>' +
         '</tr></thead><tbody>' + aRows + '</tbody></table></div>';
@@ -7513,13 +7555,17 @@ aeffOut:
         (A.fail ? "  \u2014  " + A.fail + " unit" + (A.fail === 1 ? "" : "s") + " FAIL" : "  \u2014  all pass")
         : "not checked"]
     ]);
-    K.why("Each anchor is a fastener, so its effective wind area is capped at the area " +
-      "tributary to it (SEAOC PV2 \u00a74), with no load sharing between supports. The unit's " +
-      "force at that coefficient is shared equally between its anchors: N_Ed = (\u03b3_W F_v \u2212 " +
-      "\u03b3_G G_s) / n in tension and V_Ed = \u03b3_W F_h / n in shear, with no reliance on friction. " +
+    K.why("The anchors sit on the two rails under the module's short sides, half on each: the " +
+      "rails run along the row in portrait and up the slope in landscape. Each anchor is a " +
+      "fastener, so its effective wind area is capped at the area tributary to it (SEAOC PV2 " +
+      "\u00a74), with no load sharing between supports. The most loaded anchor takes a share c of " +
+      "the unit's net force: the rail share (from the centre of pressure in portrait, half in " +
+      "landscape, and all of it at array edges and corners where the peeling case applies) over " +
+      "the anchors on that rail. N_Ed = c (\u03b3_W F_v \u2212 \u03b3_G G_s) in tension and " +
+      "V_Ed = c \u03b3_W F_h in shear, with no reliance on friction. " +
       "Each anchor is checked against its design resistances from the ETA with the EN 1992-4 " +
-      "interaction (N_Ed/N_Rd)^1.5 + (V_Ed/V_Rd)^1.5 \u2264 1. Set the anchors out at the racking " +
-      "feet; the marker positions in the placement figure are schematic. The roof slab or deck " +
+      "interaction (N_Ed/N_Rd)^1.5 + (V_Ed/V_Rd)^1.5 \u2264 1. Set the anchors out at the rail " +
+      "feet; positions along a rail in the placement figure are schematic. The roof slab or deck " +
       "receiving the anchors is not checked here.");
     if (!A.have)
       K.callout("The anchor design resistances are not entered, so the anchors are not checked. " +
@@ -8412,7 +8458,12 @@ aeffOut:
       if (an) {
         subhead("Chemical anchors on the design unit");
         navyTable(["Step", "Value"], [
-          ["Anchors on the unit, n", String(an.n)],
+          ["Anchors on the unit, n", an.n + "  (" + an.perRail + " on each of the two rails under the " +
+            "module's short sides, " + (an.rails === "row" ? "along the row" : "up the slope") + ")"],
+          ["Share of the most loaded anchor, c", f(an.railShare, 3) + " on the rail / " + an.perRail +
+            " = " + f(an.c, 3) + (an.peel ? "  (edge peeling: whole unit on one rail)"
+              : an.rails === "row" ? "  (centre of pressure between the low and high rails)"
+              : "  (end rails share equally)")],
           ["Area tributary to one anchor", f(an.Atrib, 3) + " m\u00b2  (PV2 \u00a74 fastener rule, no load sharing)"],
           ["Normalised area A_n", f(an.An, 3)],
           ["(GC_rn)nom at that area", f(an.nom, 3)],
@@ -8420,9 +8471,9 @@ aeffOut:
           ["p = q \u00b7 GC_rn", f(an.p, 3) + " kPa"],
           ["F on the unit = p \u00b7 A_trib", f(an.F, 3) + " kN  \u2192  F_v = " + f(an.Fv, 3) +
             " kN, F_h = " + f(an.Fh, 3) + " kN"],
-          ["N_Ed = (\u03b3_W F_v \u2212 \u03b3_G G_s) / n", "(" + f(r.gW, 2) + " \u00d7 " + f(an.Fv, 3) +
-            " \u2212 " + f(r.gG, 2) + " \u00d7 " + f(r.Gs, 3) + ") / " + an.n + " = " + f(an.NEd, 3) + " kN"],
-          ["V_Ed = \u03b3_W F_h / n", f(r.gW, 2) + " \u00d7 " + f(an.Fh, 3) + " / " + an.n + " = " +
+          ["N_Ed = c (\u03b3_W F_v \u2212 \u03b3_G G_s)", f(an.c, 3) + " \u00d7 (" + f(r.gW, 2) + " \u00d7 " +
+            f(an.Fv, 3) + " \u2212 " + f(r.gG, 2) + " \u00d7 " + f(r.Gs, 3) + ") = " + f(an.NEd, 3) + " kN"],
+          ["V_Ed = c \u03b3_W F_h", f(an.c, 3) + " \u00d7 " + f(r.gW, 2) + " \u00d7 " + f(an.Fh, 3) + " = " +
             f(an.VEd, 3) + " kN"],
           ["Design resistance (ETA)", an.have ? "N_Rd = " + f(an.NRd, 2) + " kN, V_Rd = " + f(an.VRd, 2) +
             " kN" + (an.ref ? "  \u2014  " + an.ref : "") : "not entered"],
