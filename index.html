@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="format-detection" content="telephone=no"/>
-<title>Ballast — rooftop PV ballast design · v95</title>
+<title>Ballast — rooftop PV ballast design · v96</title>
 <style>
 :root{
   --paper:#EDF0F1; --panel:#F8FAFA; --sunk:#E3E8E9;
@@ -599,7 +599,7 @@ tbody tr:last-child td{border-bottom:0}
       <span class="chip">rational design</span>
       <span class="chip">ASTM D1894</span>
       <span class="chip" id="chipCode">PV2-2017 basis</span>
-      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v95 · engine 4.4.2</span>
+      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v96 · engine 4.4.3</span>
     </div>
     <div class="tools">
       <button type="button" id="newBtn" class="go" title="Start a blank project. Clears the name, every evidence reference and all inherited assumptions.">New project</button>
@@ -826,6 +826,8 @@ tbody tr:last-child td{border-bottom:0}
         <button type="button" id="olEdit">Draw / edit outline</button>
         <span class="eyebrow" id="olSum"></span>
       </div>
+      <label class="chk" data-poly="1"><input type="checkbox" id="zone3Convex"/>
+        Zone 3 only at outside corners — where edge strips of unrelated walls overlap, use zone 2</label>
       <p class="note" data-poly="1">Zones are measured along N, S, E and W from every outline edge, so
         outside corners are corner zones and inside (re-entrant) corners are not. W<sub>L</sub> and
         W<sub>S</sub> become the outline's bounding rectangle, which is conservative for a<sub>pv</sub>
@@ -901,6 +903,9 @@ tbody tr:last-child td{border-bottom:0}
       <div class="sub">Wind deflectors — Al Sayegh 2025 · Geurts 2014 · Banks 2013</div>
       <label class="chk"><input type="checkbox" id="deflectorOn"/>
         Closed rear / high-edge wind deflectors on every module in this array</label>
+      <p class="note" data-layout="duo">Duo-pitch: each panel's back is closed by the opposing tilted
+        panel, so there is no open rear for a deflector to close. The deflector reduction is not applied
+        on a duo-pitch layout; the duo shelter is γ<sub>duo</sub> on interior units.</p>
       <div class="grid" data-def="1">
         <label class="f"><span>γ<sub>def</sub> <i>on GC<sub>rn</sub></i></span>
           <select id="deflectorMode">
@@ -909,7 +914,7 @@ tbody tr:last-child td{border-bottom:0}
             <option value="tunnel">Use the wind-tunnel factor instead</option>
             <option value="manual">Set γ_def manually</option>
           </select></label>
-        <label class="f" data-defm="manual"><span>γ<sub>def</sub> manual</span><input id="deflectorManual"/></label>
+        <label class="f" data-defm="manual" title="Below 0.65 the combined reduction falls under the ASCE 7-16 §31.6.1.1 floor; units that take the credit are then blocked unless an independent peer review is recorded."><span>γ<sub>def</sub> manual <i>≥ 0.65 without peer review</i></span><input id="deflectorManual"/></label>
         <label class="f"><span>Deflector drag <i>% added to F_h</i></span><input id="deflectorDrag"/></label>
         <label class="f" style="flex:1 1 100%"><span>Deflector wind-tunnel report</span><input id="deflectorRef" placeholder="lab, report no., peer reviewer"/></label>
       </div>
@@ -1419,7 +1424,7 @@ tbody tr:last-child td{border-bottom:0}
   var SANS_CR_COEFF = 1.36;
   /* SANS 10160-3 Table 4 — air density vs altitude (kg/m³). Linear interpolation. */
   var SANS_RHO_TABLE = [[0, 1.20], [500, 1.12], [1000, 1.06], [1500, 1.00], [2000, 0.94]];
-  var ENGINE_VERSION = "4.4.2";
+  var ENGINE_VERSION = "4.4.3";
   var SCHEMA_VERSION = 4;
 
   /* ---- ASCE 7 exposure constants (Table 26.9-1) --------------------------- */
@@ -2299,6 +2304,15 @@ tbody tr:last-child td{border-bottom:0}
     if (!i || !i.deflectorOn)
       return { value: 1, applied: false, eligible: false,
         reason: "no closed rear deflector claimed", stack: g };
+    /* v96: a duo-pitch tent has no open rear to close. Each panel's high edge
+       meets the opposing tilted panel at the ridge; its shelter is the duo
+       screening factor. The deflector cut was measured on mono-tilt arrays
+       with a near-vertical rear plate, so it does not transfer. */
+    if (i.layout === "duo")
+      return { value: 1, applied: false, eligible: false, stack: g,
+        reason: "γ_def withheld on a duo-pitch layout: each panel's back is closed by the opposing " +
+          "tilted panel, not by a near-vertical rear deflector. The deflector reduction was measured " +
+          "on mono-tilt arrays (Al Sayegh 2025) and does not transfer; the duo shelter is γ_duo." };
     if (!g.allowDeflector)
       return { value: 1, applied: false, eligible: false, reason: g.reason, stack: g };
 
@@ -2619,6 +2633,14 @@ tbody tr:last-child td{border-bottom:0}
 
     /* --- zone --- */
     var zd = deriveZone(i.dUO, apv, i.obtuseCorner);
+    /* v96: irregular plan with zone 3 held to outside corners. The layout has
+       already found this unit's strips overlap away from any outside corner
+       and passes the cap; the engine only sees N/S/E/W distances. */
+    if (i._zoneCap === 2 && zd.zone === 3 && i.zoneMode !== "manual") {
+      zd = Object.assign({}, zd, { zone: 2, capped: true });
+      notes.push("Irregular plan, zone 3 at outside corners only: this unit sits where two edge strips " +
+        "overlap away from any outside corner, so it is taken as zone 2.");
+    }
 
     /* PV2-2017 p.12: use Zone 3 values within one characteristic length of a
        large rooftop obstruction. On a stepped roof the upper block is that
@@ -3555,7 +3577,7 @@ tbody tr:last-child td{border-bottom:0}
         { zeInclParapet: false }, "wind");
     }
     var tunClaimed = num(raw.tunnelFactor, 1) < 1 - 1e-12;
-    if (!raw.deflectorOn && !tunClaimed) {
+    if (!raw.deflectorOn && !tunClaimed && raw.layout !== "duo") {
       trial("Fit closed rear wind deflectors — γ_def 0.70",
         "Al Sayegh 2025: up to 50% cut in peak net Cp under cornering winds; +30% dynamic amp in the same tests. 0.70 = 0.50 × 1.30 screening. Banks 2013 and Geurts 2014 agree high-side fairings drop uplift. Not offered when a product tunnel is already claimed — noStackBoth will not multiply the two.",
         { deflectorOn: true, deflectorMode: "lit70" }, "deflector");
@@ -4283,24 +4305,56 @@ window.BallastDraw = (function () {
     return inside;
   }
   /* Distance along N, S, E and W from (x, y) to the first outline edge. */
-  function polyDists(P, x, y) {
+  function polyDists(P, x, y) { return polyHits(P, x, y).d; }
+  /* The same, with the index of the edge each ray meets first. */
+  function polyHits(P, x, y) {
     var d = { N: Infinity, S: Infinity, E: Infinity, W: Infinity };
+    var e = { N: -1, S: -1, E: -1, W: -1 };
     for (var k = 0; k < P.length; k++) {
       var a = P[k], b = P[(k + 1) % P.length];
       if (Math.abs(a[1] - b[1]) < 1e-9) {
         var x1 = Math.min(a[0], b[0]), x2 = Math.max(a[0], b[0]);
         if (x >= x1 && x < x2) {
-          if (a[1] <= y) d.N = Math.min(d.N, y - a[1]); else d.S = Math.min(d.S, a[1] - y);
+          if (a[1] <= y) { if (y - a[1] < d.N) { d.N = y - a[1]; e.N = k; } }
+          else if (a[1] - y < d.S) { d.S = a[1] - y; e.S = k; }
         }
       } else {
         var y1 = Math.min(a[1], b[1]), y2 = Math.max(a[1], b[1]);
         if (y >= y1 && y < y2) {
-          if (a[0] <= x) d.W = Math.min(d.W, x - a[0]); else d.E = Math.min(d.E, a[0] - x);
+          if (a[0] <= x) { if (x - a[0] < d.W) { d.W = x - a[0]; e.W = k; } }
+          else if (a[0] - x < d.E) { d.E = a[0] - x; e.E = k; }
         }
       }
     }
     ["N", "S", "E", "W"].forEach(function (k2) { if (!isFinite(d[k2])) d[k2] = 0; });
-    return d;
+    return { d: d, e: e };
+  }
+  /* v96: is (x, y) in the corner square of an OUTSIDE corner? The N-S edge
+     and the E-W edge it lies within 2*apv of must be the two walls of one
+     convex corner. Strips of unrelated walls that happen to overlap (common
+     in narrow wings, and right beside a re-entrant corner) do not qualify.
+     The outline is wound clockwise on screen, so a convex corner turns right
+     (positive cross product with y down). */
+  function convexCornerHit(P, x, y, apv) {
+    var h = polyHits(P, x, y), lim = 2 * apv, nP = P.length;
+    function convexAt(k) {
+      var a = P[(k - 1 + nP) % nP], b = P[k], c = P[(k + 1) % nP];
+      return (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]) > 0;
+    }
+    var vs = ["N", "S"].filter(function (k) { return h.e[k] >= 0 && h.d[k] <= lim + 1e-9; });
+    var hs = ["E", "W"].filter(function (k) { return h.e[k] >= 0 && h.d[k] <= lim + 1e-9; });
+    for (var i = 0; i < vs.length; i++) {
+      for (var j = 0; j < hs.length; j++) {
+        var a = h.e[vs[i]], b = h.e[hs[j]];
+        if (b === (a + 1) % nP && convexAt(b)) return true;
+        if (a === (b + 1) % nP && convexAt(a)) return true;
+      }
+    }
+    return false;
+  }
+  /* Zone 3 is held to outside corners when the option is on. */
+  function capZone(P, x, y, apv, zone, on) {
+    return (on && P && zone === 3 && !convexCornerHit(P, x, y, apv)) ? 2 : zone;
   }
   function segsCross(a, b, c, d) {
     /* axis-aligned segments only: do they touch anywhere? */
@@ -4403,7 +4457,7 @@ window.BallastDraw = (function () {
   }
   /* Paint the zones inside an outline, cell by cell from the engine's own
      classification, merging equal runs along each row. */
-  function polyZoneCells(P, apv, obtuse, X, Y, sc, fills, cls, nx) {
+  function polyZoneCells(P, apv, obtuse, X, Y, sc, fills, cls, nx, convexOnly) {
     var b = polyBBox(P), WX = b.maxX, WY = b.maxY;
     nx = nx || 140;
     var ny = Math.max(24, Math.round(nx * WY / Math.max(WX, 1e-6)));
@@ -4417,6 +4471,7 @@ window.BallastDraw = (function () {
           var cx = (i + 0.5) * dx;
           if (polyInside(P, cx, cy)) {
             z = dz ? dz(polyDists(P, cx, cy), apv, obtuse).zone : 3;
+            z = capZone(P, cx, cy, apv, z, convexOnly);
             area[z] += dx * dy;
           }
         }
@@ -4508,7 +4563,8 @@ window.BallastDraw = (function () {
       zd = window.BallastEngine
         ? window.BallastEngine.deriveZone(p.dUO, L.apv, obtuse)
         : { zone: 1 };
-      p.zone = zd.zone;
+      p.zone = capZone(L.poly, p.cx, p.cy, L.apv, zd.zone, L.z3c);
+      p.zoneCap = (p.zone !== zd.zone) ? p.zone : null;
       counts[p.zone]++;
     }
     L.counts = counts;
@@ -4590,7 +4646,7 @@ window.BallastDraw = (function () {
        With an outline they are its bounding box, which need not have the
        longer side east-west; the zone formulas take S.wLong / S.wShort. */
     var PD = planDims(S);
-    var WL = PD.X, WS = PD.Y, POLY = PD.poly;
+    var WL = PD.X, WS = PD.Y, POLY = PD.poly, Z3C = !!(POLY && S.zone3Convex);
     var AL = Math.max(n(S.arrayL, 16), 0.4), AW = Math.max(n(S.arrayW, 6), 0.4);
     var dN = Math.max(n(S.dUO && S.dUO.N, 3), 0);
     var dW = Math.max(n(S.dUO && S.dUO.W, WL / 2), 0);
@@ -4748,7 +4804,9 @@ window.BallastDraw = (function () {
       var zd = window.BallastEngine
         ? window.BallastEngine.deriveZone(dUO, apv, obtuse)
         : { zone: 1 };
-      var zone = zd.zone;
+      var zone = capZone(POLY, cx, cy, apv, zd.zone, Z3C);
+      var zoneCap = zone !== zd.zone ? zone : null;
+      if (zoneCap != null) zd = Object.assign({}, zd, { zone: zone });
       counts[zone]++;
       var dd = (cx - dW) * (cx - dW) + (cy - dN) * (cy - dN);
       if (wantI >= 0 && wantJ >= 0) {
@@ -4768,7 +4826,7 @@ window.BallastDraw = (function () {
       units.push({
         i: u.i, j: u.j, k: u.k, cx: cx, cy: cy, zone: zone,
         gx: gx, gy: gy, roof: onUp ? "upper" : "lower",
-        distBlock: dBlk, inHalo: inHalo,
+        distBlock: dBlk, inHalo: inHalo, zoneCap: zoneCap,
         x: cx - u.w / 2, y: cy - u.h / 2, w: u.w, h: u.h, dUO: dUO,
         face: u.face, tent: u.tent, leaf: u.leaf
       });
@@ -4779,7 +4837,7 @@ window.BallastDraw = (function () {
       nCols: nCols, nRows: usedRows || nRows, nUnits: units.length,
       cellW: cellW, cellH: cellH, modW: modW, modH: modH,
       units: units, counts: counts, sel: sel, apv: apv,
-      roofOff: S._roofOff || null, onUpper: !!S._onUpper, poly: POLY,
+      roofOff: S._roofOff || null, onUpper: !!S._onUpper, poly: POLY, z3c: Z3C,
       duo: duo, nTentsE: nTentsE, tentW: tentW, leaf: leaf, ridge: ridge, inner: inner,
       occW: occW, occH: occH, axHome: axHome, ayHome: ayHome
     };
@@ -4926,7 +4984,7 @@ window.BallastDraw = (function () {
     var cells = "";
     var dz = (E0 && E0.deriveZone) ? E0.deriveZone : null;
     if (POLYZ) {
-      var pzc = polyZoneCells(POLYZ, apv, obt, X, Y, sc, ZC, "", 120);
+      var pzc = polyZoneCells(POLYZ, apv, obt, X, Y, sc, ZC, "", 120, !!S.zone3Convex);
       cells = pzc.svg; area = pzc.area; ny = 0;
     }
     for (var j = 0; j < ny; j++) {
@@ -5397,7 +5455,7 @@ window.BallastDraw = (function () {
       /* Irregular outline: zones painted from the engine's own rule, the band
          lines and the setback drawn as the outline moved inward. */
       o += polyZoneCells(POLYP, apv, !!S.obtuseCorner, X, Y, s,
-        { 0: "#D4EFEA", 1: "#E7EEF3", 2: "#F8E7B8", 3: "#F5C8C8" }, "z").svg;
+        { 0: "#D4EFEA", 1: "#E7EEF3", 2: "#F8E7B8", 3: "#F5C8C8" }, "z", 140, !!S.zone3Convex).svg;
       [[b, "2 " + zBandLbl()], [b5, "5 " + zBandLbl()]].forEach(function (bd) {
         var Q = polyInset(POLYP, bd[0]);
         if (Q) o += '<path class="zring" fill="none" d="' + polyPath(Q, X, Y) + '"/>';
@@ -6593,7 +6651,7 @@ aeffOut:
     framTribW: 1.134,
     byWhom: "", checkedBy: "", revision: "",
     ballastRho: 2400, trayCover: 100, blockKg: 25, schedExact: false,
-    panelOrient: "landscape", polyOn: false, roofPoly: null,
+    panelOrient: "landscape", polyOn: false, roofPoly: null, zone3Convex: false,
     anchorAll: false, anchorsPerPoint: 2, anchorNRd: null, anchorVRd: null, anchorRef: "",
     roofSDL: null, roofSDLRef: "", terrainRef: "", eJustify: "", shareRef: "LM-R42-L continuous over 4 feet at 1.484 m (350 mm row gap). Ixx 45751 mm4, Zxx 2178.6 mm3, fy 196 MPa, 2 rails.",
     screeningRef: "", surfaceType: "", gapPerim: null, gapRow: null,
@@ -7154,7 +7212,7 @@ aeffOut:
                    x: (u.gx != null ? u.gx - u.w / 2 : u.x),
                    y: (u.gy != null ? u.gy - u.h / 2 : u.y),
                    lx: u.x, ly: u.y,
-                   w: u.w, h: u.h, dUO: u.dUO, roleOv: u.roleOv || null,
+                   w: u.w, h: u.h, dUO: u.dUO, roleOv: u.roleOv || null, zoneCap: u.zoneCap || null,
                    roof: u.roof || "lower",
                    distBlock: (u.distBlock == null ? null : u.distBlock),
                    inHalo: !!u.inHalo });
@@ -7211,6 +7269,7 @@ aeffOut:
       /* v94: where the roof outline removed panels from this block, the unit's
          role comes from the neighbours it actually has. */
       i2._role = a.roleOv || null;
+      i2._zoneCap = a.zoneCap || null;
       i2._roleNR = a.nR;
       i2.dRowEnd = (dp.E === 0 || dp.W === 0) ? 0 : 5;
       /* Each unit is priced on the roof it actually stands on. base carries the
@@ -7228,6 +7287,7 @@ aeffOut:
                   x: a.x, y: a.y, w: a.w, h: a.h,
                   roof: a.roof, inHalo: !!a.inHalo,
                   kg: rr.valid ? rr.requiredKg : NaN, E: rr.E, zone: rr.zone,
+                  why: rr.valid ? null : String((rr.blockers && rr.blockers[0]) || "applicability check"),
                   gov: rr.governing, valid: rr.valid, exposed: exposed.join(""),
                   anchor: rr.anchor || null,
                   fetch: exposed.length ? Math.max.apply(null, exposed.map(function (k) {
@@ -7431,7 +7491,8 @@ aeffOut:
         '" stroke-width="' + (up ? "1.1" : ".5") + '"><title>' +
         (stepped ? (up ? "upper block \u00b7 " : "lower roof \u00b7 ") : "") +
         "col " + (r.i + 1) + " row " + (r.j + 1) + " \u00b7 " +
-        (sc.anchorAll ? "no ballast" : !tk ? "not computed" : sc.exact
+        (sc.anchorAll ? "no ballast" : !tk ? "not computed" + (r.why ? " \u2014 " +
+          String(r.why).replace(/&/g, "&amp;").replace(/</g, "&lt;") : "") : sc.exact
           ? "place " + f0(exactOf(r.kg)) + " kg (needs " + f(r.kg, 1) + " kg)"
           : "place " + f0(tk.kg) + " kg = " + blocksTxt(tk.kg) + " (needs " + f0(r.kg) + " kg)") +
         (an ? " \u00b7 " + anchorTxt(an) : "") +
@@ -7668,10 +7729,17 @@ aeffOut:
         (sc.worst.j + 1) + (sc.recs.length && sc.worst.part !== undefined ? ", part " + (sc.worst.part + 1) : "") +
         ' at E = ' + f(sc.worst.E, 2) + ' \u2014 ' + f0(sc.worst.kg) + ' kg, ' +
         f(100 * (sc.worst.kg / sel - 1), 0) + ' % above the ' + f0(sel) + ' kg displayed.</p>';
-    if (sc.anyInvalid)
+    if (sc.anyInvalid) {
+      /* v96: name the check, with a count, so a blank unit can be traced. */
+      var whyN = {};
+      sc.recs.forEach(function (r) { if (!isFinite(r.kg) && r.why) whyN[r.why] = (whyN[r.why] || 0) + 1; });
       warn += '<p class="note" style="padding:0 0 .6rem"><b style="color:var(--gov)">Some units ' +
         'did not pass their applicability checks</b> and are shown blank. Fix those before ' +
-        'relying on the totals.</p>';
+        'relying on the totals.' + Object.keys(whyN).map(function (k) {
+          return '<br>\u2022 ' + whyN[k] + ' unit' + (whyN[k] === 1 ? '' : 's') + ': ' +
+            k.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+        }).join("") + '</p>';
+    }
 
     var tKey = heatKey(sc);
     function depthCell(kg) {
@@ -9194,7 +9262,14 @@ aeffOut:
         "ASCE 7-16 / PV2 zones: outside corners are corner zones, inside (re-entrant) corners are not. " +
         "W_L and W_S are the outline's bounding rectangle, which gives the larger a_pv and L_b and so the " +
         "more conservative coefficients. Panels whose footprint leaves the outline, or enters the setback " +
-        "from any edge, are not placed.");
+        "from any edge, are not placed." + (i.zone3Convex
+          ? " Zone 3 is held to outside corners: a panel is zone 3 only within 2" +
+            (i.codeBasis === "pv2012" ? "a_pv" : "h") + " of both walls of a convex corner. Where " +
+            "edge strips of unrelated walls overlap \u2014 in narrow wings and beside re-entrant " +
+            "corners \u2014 it is taken as zone 2, because the corner vortices that set zone 3 form " +
+            "at outside corners."
+          : " Zone 3 is wherever an N-S edge strip and an E-W edge strip overlap, which includes " +
+            "overlaps of unrelated walls in narrow wings; that is conservative."));
 
     subhead("Array and design unit");
     var nCols = L ? L.nCols : i.nCols;
@@ -11323,7 +11398,7 @@ aeffOut:
   var SELF = ["codeBasis","edgeModel","dafMode","unitRoof","layout","windBasis","terrain","rhoMode","asceUnits","asceExposure","zoneMode","zoneManual",
     "eMode","zoneArrMode","zoneArr","eSlideMode","combo","ccClass","framCondition","topoType","muLib","deflectorMode","gammaPMode","sharePreset","panelOrient"];
   var CHKF = ["useReturnPeriod","zeInclParapet","showConstants","airGapConfirmed","obtuseCorner",
-    "capFastener","loadShareConfirmed","railCheck","framingCheck","computeTopo","railsTied","deflectorOn","pinCorners","railPeel","stepped","steppedAccept","schedExact","anchorAll","polyOn"];
+    "capFastener","loadShareConfirmed","railCheck","framingCheck","computeTopo","railsTied","deflectorOn","pinCorners","railPeel","stepped","steppedAccept","schedExact","anchorAll","polyOn","zone3Convex"];
   var TXTF = ["deflectorRef","muRef","tunnelRef","byWhom","checkedBy","revision","client","rpJustify",
     "roofSDLRef","terrainRef","eJustify","shareRef","screeningRef","surfaceType","railName","kfJustify","anchorRef"];
   var DIRS = ["N","S","E","W"];
@@ -11368,6 +11443,7 @@ aeffOut:
     if (!u || !u.dUO) return;
     S.dUO = { N: u.dUO.N, S: u.dUO.S, E: u.dUO.E, W: u.dUO.W };
     S._role = u.roleOv || null;
+    S._zoneCap = u.zoneCap || null;
     ["N","S","E","W"].forEach(function (k) {
       if (ae === "dUO_" + k) return;
       el("dUO_" + k).value = Math.round(S.dUO[k] * 1000) / 1000;
@@ -12148,6 +12224,7 @@ aeffOut:
           if (S.selCol >= 1 && S.selRow >= 1 && !(ae2 && ae2.indexOf("dUO_") === 0)) {
             S.dUO = { N: u.dUO.N, S: u.dUO.S, E: u.dUO.E, W: u.dUO.W };
             S._role = u.roleOv || null;
+            S._zoneCap = u.zoneCap || null;
             ["N","S","E","W"].forEach(function (k) {
               el("dUO_" + k).value = Math.round(S.dUO[k] * 1000) / 1000;
             });
@@ -13849,7 +13926,7 @@ aeffOut:
           Object.keys(DEF).forEach(function (k) {
             S[k] = DEF[k] === undefined ? undefined : JSON.parse(JSON.stringify(DEF[k]));
           });
-          S.roofs = []; S.roofI = 0; S._role = null;
+          S.roofs = []; S.roofI = 0; S._role = null; S._zoneCap = null;
           S.layout = "mono"; S.arrayRot = 0; S.stepped = false;
           S.pinCorners = true; S.loadShare = 4; S.sharePreset = "custom";
           S.arrays = [snapshotArray({ name: "Array A", nCols: 6, nRows: 4, arrayDX: 0, arrayDY: 0,
