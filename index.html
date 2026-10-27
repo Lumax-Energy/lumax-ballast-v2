@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="format-detection" content="telephone=no"/>
-<title>Ballast — rooftop PV ballast design · v97</title>
+<title>Ballast — rooftop PV ballast design · v98</title>
 <style>
 :root{
   --paper:#EDF0F1; --panel:#F8FAFA; --sunk:#E3E8E9;
@@ -599,7 +599,7 @@ tbody tr:last-child td{border-bottom:0}
       <span class="chip">rational design</span>
       <span class="chip">ASTM D1894</span>
       <span class="chip" id="chipCode">PV2-2017 basis</span>
-      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v97 · engine 4.4.4</span>
+      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v98 · engine 4.4.4</span>
     </div>
     <div class="tools">
       <button type="button" id="newBtn" class="go" title="Start a blank project. Clears the name, every evidence reference and all inherited assumptions.">New project</button>
@@ -7516,7 +7516,12 @@ aeffOut:
       var x0c = parseFloat(px(r.x)), y0c = parseFloat(py(r.y));
       var padX = 0, padY = 0;
       if (an) {
-        var row = an.rails === "row", pr = an.perRail || Math.max(1, an.n / 2);
+        /* v98: the rails cross the panel's long side as it lies on the plan, so
+           they run parallel to its short side. Taken from the panel's own
+           footprint, not from the orientation setting: on a duo-pitch tent the
+           slope runs east-west and a landscape panel's long side lies
+           north-south along the ridge, which the orientation alone got wrong. */
+        var row = ch >= cw, pr = an.perRail || Math.max(1, an.n / 2);
         var along = row ? cw : ch, across = row ? ch : cw;
         var mr = Math.max(1.2, Math.min(3.2, Math.min(along / (pr * 2.6), across * 0.13)));
         var inset = Math.max(mr + 0.8, across * (an.railFrac != null ? an.railFrac : 0.25));
