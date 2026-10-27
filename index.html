@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="format-detection" content="telephone=no"/>
-<title>Ballast — rooftop PV ballast design · v93</title>
+<title>Ballast — rooftop PV ballast design · v94</title>
 <style>
 :root{
   --paper:#EDF0F1; --panel:#F8FAFA; --sunk:#E3E8E9;
@@ -482,6 +482,29 @@ details.more[open]>summary::before{content:"– "}
 .tierlegend i{width:.85rem;height:.85rem;flex:0 0 auto;border:1px solid rgba(19,34,41,.35)}
 #schedOut .tw.tall{max-height:28rem;overflow-y:auto}
 #schedOut .tw.tall thead th{position:sticky;top:0;background:var(--panel)}
+.olwrap{position:fixed;inset:0;z-index:90;background:rgba(19,34,41,.45);display:flex;
+  align-items:center;justify-content:center;padding:16px}
+.olwrap[hidden]{display:none}
+.olbox{background:var(--panel);width:100%;max-width:1080px;max-height:calc(100vh - 32px);overflow:auto;
+  border:1px solid var(--rule);box-shadow:0 12px 40px rgba(0,0,0,.28);padding:1rem 1.1rem}
+.olhead{display:flex;flex-wrap:wrap;gap:.3rem 1rem;align-items:baseline;margin-bottom:.6rem}
+.olhead h3{margin:0;font-family:var(--disp);font-size:1.1rem}
+.oltools{display:flex;flex-wrap:wrap;gap:.5rem .7rem;align-items:flex-end;margin-bottom:.6rem}
+.oltools .f.inl{width:7.5rem}
+.olmain{display:grid;gap:.8rem;grid-template-columns:minmax(0,1fr) 19rem}
+@media (max-width:880px){.olmain{grid-template-columns:1fr}}
+#olSvg{width:100%;height:auto;display:block;background:#fff;border:1px solid var(--rule);
+  cursor:crosshair;touch-action:none;user-select:none}
+.olside{min-width:0}
+.olside table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.72rem}
+.olside th,.olside td{padding:.22rem .3rem;border-bottom:1px solid var(--rule);text-align:left}
+.olside input{width:5.6rem;font-family:var(--mono);font-size:.74rem;padding:.15rem .3rem}
+.olside tr.hl{background:var(--sunk)}
+.olside .tw{max-height:22rem;overflow-y:auto}
+.olstat{font-size:.76rem;margin:.5rem 0 0;color:var(--ink2)}
+.olstat.bad{color:var(--gov);font-weight:600}
+.olfoot{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.6rem;margin-top:.8rem}
+.olrow{display:flex;flex-wrap:wrap;gap:.4rem .8rem;align-items:center;margin:.35rem 0}
 .tierchip{display:inline-block;width:.7rem;height:.7rem;margin-right:.45rem;vertical-align:-.05rem;
   border:1px solid rgba(19,34,41,.35)}
 .fitbad{color:var(--gov);font-weight:600}.fitok{color:var(--pass);font-weight:600}
@@ -576,7 +599,7 @@ tbody tr:last-child td{border-bottom:0}
       <span class="chip">rational design</span>
       <span class="chip">ASTM D1894</span>
       <span class="chip" id="chipCode">PV2-2017 basis</span>
-      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v93 · engine 4.4.1</span>
+      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v94 · engine 4.4.2</span>
     </div>
     <div class="tools">
       <button type="button" id="newBtn" class="go" title="Start a blank project. Clears the name, every evidence reference and all inherited assumptions.">New project</button>
@@ -797,6 +820,17 @@ tbody tr:last-child td{border-bottom:0}
         <label class="f"><span id="apvLbl">a<sub>pv</sub> <i>derived, m</i></span><input id="apvOut" readonly/></label>
         <label class="f" data-c17="1"><span>L<sub>b</sub> <i>for A<sub>n</sub>, m</i></span><input id="lbOut" readonly/></label>
       </div>
+      <label class="chk"><input type="checkbox" id="polyOn"/>
+        Irregular plan — roof outline with 90° corners</label>
+      <div class="olrow" data-poly="1">
+        <button type="button" id="olEdit">Draw / edit outline</button>
+        <span class="eyebrow" id="olSum"></span>
+      </div>
+      <p class="note" data-poly="1">Zones are measured along N, S, E and W from every outline edge, so
+        outside corners are corner zones and inside (re-entrant) corners are not. W<sub>L</sub> and
+        W<sub>S</sub> become the outline's bounding rectangle, which is conservative for a<sub>pv</sub>
+        and L<sub>b</sub>. Panels outside the outline, or inside the setback from any edge, are not placed
+        and show dashed red on the plan.</p>
       <p class="note">PV2-2012 Note 6 is 1.00 below 1.219 m, then climbs. ASCE 7-16 / SEAOC PV2-2017
         is γ<sub>p</sub> = min(1.2, 0.9 + h<sub>pt</sub>/h): no parapet is 0.90, not 1.00, and the
         factor caps at 1.20.</p>
@@ -1268,6 +1302,38 @@ tbody tr:last-child td{border-bottom:0}
     <div class="gate rpane" id="gate" role="tabpanel" aria-labelledby="tabGate" hidden></div>
   </div>
 </main>
+<div class="olwrap" id="olWrap" hidden>
+  <div class="olbox" role="dialog" aria-modal="true" aria-labelledby="olTitle">
+    <div class="olhead">
+      <h3 id="olTitle">Roof outline</h3>
+      <span class="eyebrow">90° corners · north is up · click the corners on the grid, then edit the dimensions</span>
+    </div>
+    <div class="oltools">
+      <label class="f inl"><span>Snap grid <i>m</i></span>
+        <select id="olGrid">
+          <option value="0.1">0.1</option><option value="0.25">0.25</option><option value="0.5">0.5</option>
+          <option value="1" selected>1</option><option value="2">2</option><option value="5">5</option>
+        </select></label>
+      <label class="f inl"><span>Canvas width <i>m</i></span><input id="olExt"/></label>
+      <button type="button" id="olRect">Start from W_L × W_S</button>
+      <button type="button" id="olUndo">Undo corner</button>
+      <button type="button" id="olClear">Clear</button>
+      <button type="button" id="olClose">Close shape</button>
+    </div>
+    <div class="olmain">
+      <svg id="olSvg" viewBox="0 0 640 440" aria-label="Outline drawing grid"></svg>
+      <div class="olside">
+        <div class="tw"><table><thead><tr><th>Edge</th><th>Runs</th><th>Length m</th></tr></thead>
+          <tbody id="olEdges"></tbody></table></div>
+        <p class="olstat" id="olStat"></p>
+      </div>
+    </div>
+    <div class="olfoot">
+      <button type="button" id="olCancel">Cancel</button>
+      <button type="button" id="olApply" class="go">Use this outline</button>
+    </div>
+  </div>
+</div>
 <div class="minibar" id="minibar" role="status"></div>
 <button type="button" id="toTop" title="Back to the top (Home)" aria-label="Back to the top">&uarr; Top</button>
 
@@ -1353,7 +1419,7 @@ tbody tr:last-child td{border-bottom:0}
   var SANS_CR_COEFF = 1.36;
   /* SANS 10160-3 Table 4 — air density vs altitude (kg/m³). Linear interpolation. */
   var SANS_RHO_TABLE = [[0, 1.20], [500, 1.12], [1000, 1.06], [1500, 1.00], [2000, 0.94]];
-  var ENGINE_VERSION = "4.4.1";
+  var ENGINE_VERSION = "4.4.2";
   var SCHEMA_VERSION = 4;
 
   /* ---- ASCE 7 exposure constants (Table 26.9-1) --------------------------- */
@@ -2138,6 +2204,9 @@ tbody tr:last-child td{border-bottom:0}
   }
 
   function arrayRole(i) {
+    if (i._role === "corner" || i._role === "edge" || i._role === "second" || i._role === "interior")
+      return { role: i._role, corner: i._role === "corner", edge: i._role === "edge",
+               second: i._role === "second", interior: i._role === "interior", fromOutline: true };
     var c = Math.round(num(i.selCol, 0)), r = Math.round(num(i.selRow, 0));
     /* The schedule sweep passes each unit's own block size in _roleNC/_roleNR
        (v88); otherwise the block on screen sets it. */
@@ -3033,6 +3102,9 @@ tbody tr:last-child td{border-bottom:0}
     if (sharePreset.n != null)
       notes.push("Supports engaged from PV2-2017 Example H preset “" + sharePreset.label +
         "” = " + share.toFixed(1) + (i.loadShareConfirmed ? "." : ". Verification box is off — PV2 still wants the rail calc."));
+    if (i.polyOn)
+      notes.push("Irregular roof plan (90\u00b0 corners): edge distances are measured along N, S, E and W " +
+        "to the outline, and W_L / W_S are its bounding rectangle, which is conservative for a_pv and L_b.");
     if (anchorAll)
       notes.push("Full chemical anchor system: every unit is anchored and carries no ballast. The anchors take uplift and sliding.");
     else if (pinned)
@@ -4168,6 +4240,255 @@ window.BallastDraw = (function () {
   }
 
   /* Clockwise about (acx, acy), matching SVG rotate(deg, x, y). */
+  /* ---- irregular roof outline (v94) ---------------------------------------
+     A roof can carry an outline instead of being a W_L x W_S rectangle: a
+     closed polygon with 90-degree corners, in the roof's own frame (x east,
+     y south, metres, origin at the north-west corner of its bounding box),
+     wound clockwise on screen. Rectangular roofs have no outline and every
+     function below falls back to the rectangle, so they are unchanged.
+
+     Edge distances are measured along N, S, E and W to the first outline
+     edge, which is the strip definition the PV2 / ASCE 7 zones use: a point
+     is in an edge strip when it lies within the band beside that edge,
+     inside the edge's own extent. Two strips from perpendicular edges meet
+     only at an outside (convex) corner, so an inside (re-entrant) corner is
+     not a corner zone. */
+  function polyOf(S) {
+    if (!S || S._onUpper || !S.polyOn || !Array.isArray(S.roofPoly) || S.roofPoly.length < 4) return null;
+    return S.roofPoly;
+  }
+  function polyBBox(P) {
+    var b = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    P.forEach(function (q) {
+      b.minX = Math.min(b.minX, q[0]); b.minY = Math.min(b.minY, q[1]);
+      b.maxX = Math.max(b.maxX, q[0]); b.maxY = Math.max(b.maxY, q[1]);
+    });
+    return b;
+  }
+  /* Shoelace with y down: positive is clockwise on screen. */
+  function polyArea(P) {
+    var a = 0;
+    for (var k = 0; k < P.length; k++) {
+      var q = P[k], r2 = P[(k + 1) % P.length];
+      a += q[0] * r2[1] - r2[0] * q[1];
+    }
+    return a / 2;
+  }
+  function polyInside(P, x, y) {
+    var inside = false;
+    for (var k = 0, m = P.length - 1; k < P.length; m = k++) {
+      var xi = P[k][0], yi = P[k][1], xj = P[m][0], yj = P[m][1];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  /* Distance along N, S, E and W from (x, y) to the first outline edge. */
+  function polyDists(P, x, y) {
+    var d = { N: Infinity, S: Infinity, E: Infinity, W: Infinity };
+    for (var k = 0; k < P.length; k++) {
+      var a = P[k], b = P[(k + 1) % P.length];
+      if (Math.abs(a[1] - b[1]) < 1e-9) {
+        var x1 = Math.min(a[0], b[0]), x2 = Math.max(a[0], b[0]);
+        if (x >= x1 && x < x2) {
+          if (a[1] <= y) d.N = Math.min(d.N, y - a[1]); else d.S = Math.min(d.S, a[1] - y);
+        }
+      } else {
+        var y1 = Math.min(a[1], b[1]), y2 = Math.max(a[1], b[1]);
+        if (y >= y1 && y < y2) {
+          if (a[0] <= x) d.W = Math.min(d.W, x - a[0]); else d.E = Math.min(d.E, a[0] - x);
+        }
+      }
+    }
+    ["N", "S", "E", "W"].forEach(function (k2) { if (!isFinite(d[k2])) d[k2] = 0; });
+    return d;
+  }
+  function segsCross(a, b, c, d) {
+    /* axis-aligned segments only: do they touch anywhere? */
+    var ah = Math.abs(a[1] - b[1]) < 1e-9, ch = Math.abs(c[1] - d[1]) < 1e-9;
+    var ax1 = Math.min(a[0], b[0]), ax2 = Math.max(a[0], b[0]);
+    var ay1 = Math.min(a[1], b[1]), ay2 = Math.max(a[1], b[1]);
+    var cx1 = Math.min(c[0], d[0]), cx2 = Math.max(c[0], d[0]);
+    var cy1 = Math.min(c[1], d[1]), cy2 = Math.max(c[1], d[1]);
+    if (ah === ch) {
+      if (ah) return Math.abs(a[1] - c[1]) < 1e-9 && Math.min(ax2, cx2) - Math.max(ax1, cx1) > -1e-9;
+      return Math.abs(a[0] - c[0]) < 1e-9 && Math.min(ay2, cy2) - Math.max(ay1, cy1) > -1e-9;
+    }
+    var hy = ah ? a[1] : c[1], vx = ah ? c[0] : a[0];
+    var hx1 = ah ? ax1 : cx1, hx2 = ah ? ax2 : cx2, vy1 = ah ? cy1 : ay1, vy2 = ah ? cy2 : ay2;
+    return vx >= hx1 - 1e-9 && vx <= hx2 + 1e-9 && hy >= vy1 - 1e-9 && hy <= vy2 + 1e-9;
+  }
+  /* A usable outline: at least four corners, every edge horizontal or
+     vertical and longer than 1 cm, alternating, and no edge touching any
+     edge other than its two neighbours. */
+  function polyCheck(P) {
+    if (!Array.isArray(P) || P.length < 4) return "the outline needs at least four corners";
+    if (P.length % 2) return "a 90\u00b0 outline has an even number of corners";
+    for (var k = 0; k < P.length; k++) {
+      var a = P[k], b = P[(k + 1) % P.length], c = P[(k + 2) % P.length];
+      var h1 = Math.abs(a[1] - b[1]) < 1e-9, v1 = Math.abs(a[0] - b[0]) < 1e-9;
+      if (h1 === v1) return "edge " + (k + 1) + " is not horizontal or vertical, or has no length";
+      if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.01) return "edge " + (k + 1) + " is shorter than 1 cm";
+      var h2 = Math.abs(b[1] - c[1]) < 1e-9;
+      if (h1 === h2) return "edges " + (k + 1) + " and " + ((k + 1) % P.length + 1) + " run the same way";
+    }
+    for (var i = 0; i < P.length; i++) {
+      for (var j = i + 2; j < P.length; j++) {
+        if (i === 0 && j === P.length - 1) continue;
+        if (segsCross(P[i], P[(i + 1) % P.length], P[j], P[(j + 1) % P.length]))
+          return "edges " + (i + 1) + " and " + (j + 1) + " cross or touch";
+      }
+    }
+    return "";
+  }
+  /* The outline moved inward by d on every edge (a mitred offset: square at
+     every corner). Null when d is too large for the narrowest part. */
+  function polyInset(P, d) {
+    if (!(d > 0)) return P;
+    var nP = P.length, nrm = [], k;
+    for (k = 0; k < nP; k++) {
+      var a = P[k], b = P[(k + 1) % nP], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+      nrm.push([-(b[1] - a[1]) / L, (b[0] - a[0]) / L]);   /* inward for clockwise */
+    }
+    var Q = [];
+    for (k = 0; k < nP; k++) {
+      var np = nrm[(k - 1 + nP) % nP], nn = nrm[k];
+      Q.push([P[k][0] + d * (np[0] + nn[0]), P[k][1] + d * (np[1] + nn[1])]);
+    }
+    for (k = 0; k < nP; k++) {
+      var o0 = P[k], o1 = P[(k + 1) % nP], q0 = Q[k], q1 = Q[(k + 1) % nP];
+      var dox = o1[0] - o0[0], doy = o1[1] - o0[1], dqx = q1[0] - q0[0], dqy = q1[1] - q0[1];
+      if (dox * dqx + doy * dqy <= 1e-6) return null;      /* edge collapsed or flipped */
+    }
+    return polyCheck(Q) ? null : Q;
+  }
+  /* Does a (possibly turned) panel footprint lie wholly inside outline P?
+     cx, cy is its centre, w x h its size, th its turn in radians. */
+  function rectFits(P, cx, cy, w, h, th) {
+    var c = Math.cos(th), sN = Math.sin(th), hw = w / 2, hh = h / 2, k;
+    var cs = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+    for (k = 0; k < 4; k++) {
+      var wx = cx + cs[k][0] * c - cs[k][1] * sN, wy = cy + cs[k][0] * sN + cs[k][1] * c;
+      if (!polyInside(P, wx, wy)) return false;
+    }
+    /* no outline edge may pass through the footprint (a notch narrower than
+       the panel would otherwise slip between its corners) */
+    function loc(q) {
+      var dx = q[0] - cx, dy = q[1] - cy;
+      return [dx * c + dy * sN, -dx * sN + dy * c];
+    }
+    for (k = 0; k < P.length; k++) {
+      var a = loc(P[k]), b = loc(P[(k + 1) % P.length]);
+      var t0 = 0, t1 = 1, dx = b[0] - a[0], dy = b[1] - a[1], ok = true;
+      [[-dx, a[0] + hw - 1e-6], [dx, hw - 1e-6 - a[0]], [-dy, a[1] + hh - 1e-6], [dy, hh - 1e-6 - a[1]]]
+        .forEach(function (pq) {
+          if (!ok) return;
+          if (Math.abs(pq[0]) < 1e-12) { if (pq[1] < 0) ok = false; return; }
+          var t = pq[1] / pq[0];
+          if (pq[0] < 0) { if (t > t1) ok = false; else if (t > t0) t0 = t; }
+          else { if (t < t0) ok = false; else if (t < t1) t1 = t; }
+        });
+      if (ok && t1 - t0 > 1e-9) return false;
+    }
+    return true;
+  }
+  /* The roof frame a layout works in: the outline's bounding box, or the
+     W_L x W_S rectangle. X runs east, Y south. */
+  function planDims(S) {
+    var P = polyOf(S);
+    if (P) { var b = polyBBox(P); return { X: Math.max(b.maxX, 1), Y: Math.max(b.maxY, 1), poly: P }; }
+    return { X: Math.max(n(S.wLong, 48), 1), Y: Math.max(n(S.wShort, 28), 1), poly: null };
+  }
+  function polyPath(P, X, Y) {
+    return "M" + P.map(function (q) { return fx(X(q[0]), 1) + "," + fx(Y(q[1]), 1); }).join("L") + "Z";
+  }
+  /* Paint the zones inside an outline, cell by cell from the engine's own
+     classification, merging equal runs along each row. */
+  function polyZoneCells(P, apv, obtuse, X, Y, sc, fills, cls, nx) {
+    var b = polyBBox(P), WX = b.maxX, WY = b.maxY;
+    nx = nx || 140;
+    var ny = Math.max(24, Math.round(nx * WY / Math.max(WX, 1e-6)));
+    var dx = WX / nx, dy = WY / ny, out = "", area = { 0: 0, 1: 0, 2: 0, 3: 0 };
+    var dz = (window.BallastEngine && window.BallastEngine.deriveZone) ? window.BallastEngine.deriveZone : null;
+    for (var j = 0; j < ny; j++) {
+      var cy = (j + 0.5) * dy, run = null, runStart = 0;
+      for (var i = 0; i <= nx; i++) {
+        var z = null;
+        if (i < nx) {
+          var cx = (i + 0.5) * dx;
+          if (polyInside(P, cx, cy)) {
+            z = dz ? dz(polyDists(P, cx, cy), apv, obtuse).zone : 3;
+            area[z] += dx * dy;
+          }
+        }
+        if (z !== run) {
+          if (run !== null)
+            out += '<rect' + (cls ? ' class="' + cls + run + '"' : '') + ' x="' + fx(X(runStart * dx), 2) +
+              '" y="' + fx(Y(j * dy), 2) + '" width="' + fx((i - runStart) * dx * sc + 0.4, 2) +
+              '" height="' + fx(dy * sc + 0.4, 2) + '" fill="' + fills[run] + '"/>';
+          run = z; runStart = i;
+        }
+      }
+    }
+    return { svg: out, area: area };
+  }
+  /* Drop the panels the outline does not hold: a footprint must lie wholly
+     inside the outline moved in by the setback. Dropped panels are kept on
+     L.offRoof so the plan can show them. Where a block loses panels, the rest
+     take their corner / edge / second / interior role from the neighbours
+     they actually have (u.roleOv), not from their place in the full grid. */
+  function clipToOutline(items, S) {
+    var P = polyOf(S);
+    if (!P) return items;
+    var sb = Math.max(n(S.setback, 0), 0);
+    var Pin = polyInset(P, sb) || P;
+    items.forEach(function (it) {
+      var L = it.L;
+      if (!L || !L.units || L.onUpper) return;
+      var th = wrapArot(L.arrayRot) * Math.PI / 180;
+      var keep = [], off = [], selU = null;
+      L.units.forEach(function (u) {
+        if (u.sel) selU = u;
+        if (rectFits(Pin, u.cx, u.cy, u.w, u.h, th)) keep.push(u); else off.push(u);
+      });
+      L.poly = P;
+      L.offRoof = off;
+      if (!off.length) return;
+      L.units = keep;
+      L.nUnits = keep.length;
+      L.counts = { 0: 0, 1: 0, 2: 0, 3: 0 };
+      keep.forEach(function (u) { L.counts[u.zone]++; });
+      if (selU && off.indexOf(selU) >= 0) {
+        selU.sel = false;
+        var best = null, bd = Infinity;
+        keep.forEach(function (u) {
+          var dd = Math.pow(u.cx - selU.cx, 2) + Math.pow(u.cy - selU.cy, 2);
+          if (dd < bd) { bd = dd; best = u; }
+        });
+        if (best) best.sel = true;
+      }
+      L.sel = 0;
+      keep.forEach(function (u, k) { if (u.sel) L.sel = k; });
+      var has = {};
+      keep.forEach(function (u) { has[u.i + "," + u.j] = true; });
+      function h(i, j) { return !!has[i + "," + j]; }
+      keep.forEach(function (u) {
+        var mNS = !h(u.i, u.j - 1) || !h(u.i, u.j + 1), mEW = !h(u.i - 1, u.j) || !h(u.i + 1, u.j);
+        u.roleOv = (mNS && mEW) ? "corner" : (mNS || mEW) ? "edge" : "interior";
+      });
+      var byKey = {};
+      keep.forEach(function (u) { byKey[u.i + "," + u.j] = u; });
+      keep.forEach(function (u) {
+        if (u.roleOv !== "interior") return;
+        var nb = [[0, -1], [0, 1], [-1, 0], [1, 0]].some(function (d) {
+          var v = byKey[(u.i + d[0]) + "," + (u.j + d[1])];
+          return v && v.roleOv !== "interior" && v.roleOv !== "second";
+        });
+        if (nb) u.roleOv = "second";
+      });
+    });
+    return items;
+  }
+
   function rotCW(x, y, acx, acy, cth, sth) {
     var dx = x - acx, dy = y - acy;
     return { x: acx + dx * cth - dy * sth, y: acy + dx * sth + dy * cth };
@@ -4182,7 +4503,8 @@ window.BallastDraw = (function () {
     var counts = { 0: 0, 1: 0, 2: 0, 3: 0 }, ui, p, zd;
     for (ui = 0; ui < L.units.length; ui++) {
       p = L.units[ui];
-      p.dUO = { N: p.cy, S: L.WS - p.cy, E: L.WL - p.cx, W: p.cx };
+      p.dUO = L.poly ? polyDists(L.poly, p.cx, p.cy)
+                     : { N: p.cy, S: L.WS - p.cy, E: L.WL - p.cx, W: p.cx };
       zd = window.BallastEngine
         ? window.BallastEngine.deriveZone(p.dUO, L.apv, obtuse)
         : { zone: 1 };
@@ -4264,7 +4586,11 @@ window.BallastDraw = (function () {
 
   /* Place the array and tile ballast units from the typed inputs. */
   function layoutArray(S, r) {
-    var WL = Math.max(n(S.wLong, 48), 1), WS = Math.max(n(S.wShort, 28), 1);
+    /* WL / WS here are the roof frame's east-west and north-south extents.
+       With an outline they are its bounding box, which need not have the
+       longer side east-west; the zone formulas take S.wLong / S.wShort. */
+    var PD = planDims(S);
+    var WL = PD.X, WS = PD.Y, POLY = PD.poly;
     var AL = Math.max(n(S.arrayL, 16), 0.4), AW = Math.max(n(S.arrayW, 6), 0.4);
     var dN = Math.max(n(S.dUO && S.dUO.N, 3), 0);
     var dW = Math.max(n(S.dUO && S.dUO.W, WL / 2), 0);
@@ -4279,7 +4605,7 @@ window.BallastDraw = (function () {
        back to the engine result when this array shares the building frame. */
     var apv;
     if (window.BallastEngine && window.BallastEngine.aPv) {
-      apv = window.BallastEngine.aPv(n(S.h, 10), WL, n(S.wShort, WL),
+      apv = window.BallastEngine.aPv(n(S.h, 10), POLY ? n(S.wLong, WL) : WL, n(S.wShort, WL),
         (S.codeBasis === "pv2012") ? "pv2012" : "pv2017");
     } else if (r && r.apv && !S._onUpper) {
       apv = r.apv;
@@ -4418,7 +4744,7 @@ window.BallastDraw = (function () {
       var u = locals[li];
       var cx = ax + u.lcx;
       var cy = ay + u.lcy;
-      var dUO = { N: cy, S: WS - cy, E: WL - cx, W: cx };
+      var dUO = POLY ? polyDists(POLY, cx, cy) : { N: cy, S: WS - cy, E: WL - cx, W: cx };
       var zd = window.BallastEngine
         ? window.BallastEngine.deriveZone(dUO, apv, obtuse)
         : { zone: 1 };
@@ -4453,7 +4779,7 @@ window.BallastDraw = (function () {
       nCols: nCols, nRows: usedRows || nRows, nUnits: units.length,
       cellW: cellW, cellH: cellH, modW: modW, modH: modH,
       units: units, counts: counts, sel: sel, apv: apv,
-      roofOff: S._roofOff || null, onUpper: !!S._onUpper,
+      roofOff: S._roofOff || null, onUpper: !!S._onUpper, poly: POLY,
       duo: duo, nTentsE: nTentsE, tentW: tentW, leaf: leaf, ridge: ridge, inner: inner,
       occW: occW, occH: occH, axHome: axHome, ayHome: ayHome
     };
@@ -4479,10 +4805,18 @@ window.BallastDraw = (function () {
     var sel = Math.max(0, Math.min(roofs.length - 1, n(S.roofI, 0)));
 
     var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    function extOf(rf) {
+      if (rf.polyOn && Array.isArray(rf.poly) && rf.poly.length >= 4) {
+        var bb = polyBBox(rf.poly);
+        return { X: bb.maxX, Y: bb.maxY, poly: rf.poly };
+      }
+      return { X: n(rf.WL, 0), Y: n(rf.WS, 0), poly: null };
+    }
     roofs.forEach(function (rf) {
+      var ex = extOf(rf);
       x0 = Math.min(x0, n(rf.x, 0)); y0 = Math.min(y0, n(rf.y, 0));
-      x1 = Math.max(x1, n(rf.x, 0) + n(rf.WL, 0));
-      y1 = Math.max(y1, n(rf.y, 0) + n(rf.WS, 0));
+      x1 = Math.max(x1, n(rf.x, 0) + ex.X);
+      y1 = Math.max(y1, n(rf.y, 0) + ex.Y);
     });
     var padM = Math.max(6, 0.06 * Math.max(x1 - x0, y1 - y0));
     x0 -= padM; y0 -= padM; x1 += padM; y1 += padM;
@@ -4502,16 +4836,20 @@ window.BallastDraw = (function () {
     roofs.forEach(function (rf, ix) {
       var on = ix === sel;
       var px = X(n(rf.x, 0)), py = Y(n(rf.y, 0));
-      var pw = n(rf.WL, 0) * sc, pd = n(rf.WS, 0) * sc;
-      o += '<rect data-roof="' + ix + '" x="' + fx(px, 1) + '" y="' + fx(py, 1) +
-        '" width="' + fx(pw, 1) + '" height="' + fx(pd, 1) +
+      var exR = extOf(rf);
+      var pw = exR.X * sc, pd = exR.Y * sc;
+      o += (exR.poly
+        ? '<path data-roof="' + ix + '" d="' + polyPath(exR.poly,
+            function (v) { return px + v * sc; }, function (v) { return py + v * sc; })
+        : '<rect data-roof="' + ix + '" x="' + fx(px, 1) + '" y="' + fx(py, 1) +
+        '" width="' + fx(pw, 1) + '" height="' + fx(pd, 1)) +
         '" fill="' + (on ? "#CBD8E2" : "#EEF2F4") + '" fill-opacity="' + (on ? ".95" : ".8") +
         '" stroke="#132229" stroke-width="' + (on ? "1.8" : "1") + '"' +
         (on ? "" : ' stroke-dasharray="5 3"') + ' style="cursor:move"><title>' +
         xe(rf.name) + "  \u00b7  " + fx(n(rf.WL, 0), 1) + " \u00d7 " + fx(n(rf.WS, 0), 1) +
         " m  \u00b7  h = " + fx(n(rf.h, 0), 2) + " m  \u00b7  parapet " +
         fx(n(rf.hpt, 0), 2) + " m" + (on ? "  \u00b7  selected" : "  \u00b7  click to select") +
-        "</title></rect>";
+        "</title>" + (exR.poly ? "</path>" : "</rect>");
       if (pw > 54 && pd > 26) {
         o += txt(px + pw / 2, py + pd / 2 - 3, rf.name, on ? "dt" : "dl", "middle");
         o += txt(px + pw / 2, py + pd / 2 + 11,
@@ -4520,7 +4858,7 @@ window.BallastDraw = (function () {
       } else {
         o += txt(px + pw / 2, py - 4, rf.name, on ? "dt" : "dl", "middle");
       }
-      if (on) {
+      if (on && !exR.poly) {
         var gs = 9;
         o += '<rect data-roofgrip="' + ix + '" x="' + fx(px + pw - gs, 1) + '" y="' +
           fx(py + pd - gs, 1) + '" width="' + gs + '" height="' + gs +
@@ -4553,12 +4891,14 @@ window.BallastDraw = (function () {
      drift from it. Runs of equal zone along a row are merged into one rect. */
   function zoneMap(S0, r0) {
     var S = (r0 && r0.inputs) ? r0.inputs : S0;
-    var WL = n(S.wLong, 0), WS = n(S.wShort, 0), h = n(S.h, 10);
+    var PDz = planDims(S), POLYZ = PDz.poly;
+    var WL = POLYZ ? PDz.X : n(S.wLong, 0), WS = POLYZ ? PDz.Y : n(S.wShort, 0), h = n(S.h, 10);
     if (!(WL > 0 && WS > 0)) return "";
     var c17 = !(S.codeBasis === "pv2012" ||
       (typeof window !== "undefined" && window.__pv2Basis === "pv2012"));
     var E0 = (typeof window !== "undefined") ? window.BallastEngine : null;
-    var apv = (E0 && E0.aPv) ? E0.aPv(h, WL, WS, c17 ? "pv2017" : "pv2012")
+    var apv = (E0 && E0.aPv) ? E0.aPv(h, POLYZ ? n(S.wLong, WL) : WL, POLYZ ? n(S.wShort, WS) : WS,
+                                     c17 ? "pv2017" : "pv2012")
                              : Math.min(h, 0.5 * Math.sqrt(h * WL));
     var obt = !!S.obtuseCorner;
     /* Opaque tints, pre-blended with white. Runs overlap by 0.4 px to hide
@@ -4585,6 +4925,10 @@ window.BallastDraw = (function () {
     var area = { 0: 0, 1: 0, 2: 0, 3: 0 };
     var cells = "";
     var dz = (E0 && E0.deriveZone) ? E0.deriveZone : null;
+    if (POLYZ) {
+      var pzc = polyZoneCells(POLYZ, apv, obt, X, Y, sc, ZC, "", 120);
+      cells = pzc.svg; area = pzc.area; ny = 0;
+    }
     for (var j = 0; j < ny; j++) {
       var cy = (j + 0.5) * dy, run = null, runStart = 0;
       for (var i = 0; i <= nx; i++) {
@@ -4649,6 +4993,16 @@ window.BallastDraw = (function () {
     o += designBox;
 
     /* ---- roof outline, band lines, setback (over the panels, so they read) ---- */
+    var sb = n(S.setback, 0);
+    if (POLYZ) {
+      o += '<path d="' + polyPath(POLYZ, X, Y) + '" fill="none" stroke="#132229" stroke-width="1.6"/>';
+      [b2, b5].forEach(function (bb) {
+        var Q = polyInset(POLYZ, bb);
+        if (Q) o += '<path d="' + polyPath(Q, X, Y) + '" fill="none" stroke="#132229" stroke-width=".9" stroke-dasharray="5 3"/>';
+      });
+      var Qsb = polyInset(POLYZ, sb);
+      if (sb > 0 && Qsb) o += '<path d="' + polyPath(Qsb, X, Y) + '" fill="none" stroke="#132229" stroke-width=".7" stroke-dasharray="1.5 2"/>';
+    } else {
     o += '<rect x="' + fx(X(0), 1) + '" y="' + fx(Y(0), 1) + '" width="' + fx(WL * sc, 1) +
       '" height="' + fx(WS * sc, 1) + '" fill="none" stroke="#132229" stroke-width="1.6"/>';
     [[b2, "2" + BL], [b5, "5" + BL]].forEach(function (bd) {
@@ -4659,11 +5013,11 @@ window.BallastDraw = (function () {
           '" fill="none" stroke="#132229" stroke-width=".9" stroke-dasharray="5 3"/>';
       }
     });
-    var sb = n(S.setback, 0);
     if (sb > 0 && 2 * sb < WL && 2 * sb < WS) {
       o += '<rect x="' + fx(X(sb), 1) + '" y="' + fx(Y(sb), 1) + '" width="' +
         fx((WL - 2 * sb) * sc, 1) + '" height="' + fx((WS - 2 * sb) * sc, 1) +
         '" fill="none" stroke="#132229" stroke-width=".7" stroke-dasharray="1.5 2"/>';
+    }
     }
 
     /* ---- zone distances, roof edge to the end of each zone ----------------
@@ -4748,22 +5102,27 @@ window.BallastDraw = (function () {
       else if (wt + 8 < y1 - y0) o2 += lab(x - 6, (y0 + y1) / 2, tag, "middle", -90);
       return o2;
     }
-    o += dimTop(b2, 22, "2" + BL, false) + dimTop(b5, 50, "5" + BL, true);
-    o += dimLeft(b2, 22, "2" + BL, false) + dimLeft(b5, 50, "5" + BL, true);
+    if (!POLYZ) {
+      o += dimTop(b2, 22, "2" + BL, false) + dimTop(b5, 50, "5" + BL, true);
+      o += dimLeft(b2, 22, "2" + BL, false) + dimLeft(b5, 50, "5" + BL, true);
+    } else {
+      o += txt(ML, 50, "irregular plan, 90\u00b0 corners \u2014 dashed lines are 2" + BL + " and 5" + BL +
+        " in from every roof edge", "dl");
+    }
 
     /* name each band where it is drawn, at its own corner */
     [[b2, "2" + BL], [b5, "5" + BL]].forEach(function (bd) {
-      if (2 * bd[0] < WL && 2 * bd[0] < WS)
+      if (!POLYZ && 2 * bd[0] < WL && 2 * bd[0] < WS)
         o += '<text x="' + fx(X(bd[0]) + 5, 1) + '" y="' + fx(Y(bd[0]) + 14, 1) +
           '" style="font:700 10.5px Inter,Segoe UI,Arial,sans-serif;fill:' + DK + '">' +
           xe(bd[1]) + '</text>';
     });
 
-    o += hdim(X(0), X(WL), Y(WS) + 20, "W_L " + fx(WL, 1) + " m", "z", true);
-    o += vdim(Y(0), Y(WS), X(WL) + 18, "W_S " + fx(WS, 1) + " m", "z", true);
+    o += hdim(X(0), X(WL), Y(WS) + 20, (POLYZ ? "extent " : "W_L ") + fx(WL, 1) + " m", "z", true);
+    o += vdim(Y(0), Y(WS), X(WL) + 18, (POLYZ ? "extent " : "W_S ") + fx(WS, 1) + " m", "z", true);
 
     /* ---- legend ---- */
-    var lx = VB_W - MR + 40, ly = MT + 4, tot = WL * WS;
+    var lx = VB_W - MR + 40, ly = MT + 4, tot = POLYZ ? Math.abs(polyArea(POLYZ)) : WL * WS;
     o += txt(lx, ly, "ZONE", "dt");
     o += txt(VB_W - 10, ly, "roof", "dl", "end"); ly += 16;
     [3, 2, 1, 0].forEach(function (zz) {
@@ -4786,7 +5145,7 @@ window.BallastDraw = (function () {
     o += txt(lx + 20, ly, "zone band", "dl"); ly += 15;
     o += txt(lx, ly + 4, "Dimensions run from the roof", "dl"); ly += 16;
     o += txt(lx, ly, "edge to the end of each zone.", "dl"); ly += 15;
-    if (!boundaryOn(b2, WL, false) || !boundaryOn(b2, WS, false) || !boundaryOn(b5, WL, true)) {
+    if (!POLYZ && (!boundaryOn(b2, WL, false) || !boundaryOn(b2, WS, false) || !boundaryOn(b5, WL, true))) {
       o += txt(lx, ly, "An open arrow means that band", "dl"); ly += 13;
       o += txt(lx, ly, "has no boundary on this roof.", "dl"); ly += 15;
     }
@@ -4876,7 +5235,7 @@ window.BallastDraw = (function () {
       list = all.filter(function (a) { return !a.roofId || a.roofId === rid; });
       if (!list.length) return [];
     }
-    if (!list) return [{ i: 0, part: 0, L: layoutArray(S, r) }];
+    if (!list) return clipToOutline([{ i: 0, part: 0, L: layoutArray(S, r) }], S);
     var out = [], i, b;
     var ai0 = Math.round(n(S.arrayI, 0));
     var sbAll = Math.max(n(S.setback, 0), 0);
@@ -4925,7 +5284,7 @@ window.BallastDraw = (function () {
       }
       for (b = 0; b < items.length; b++) out.push(items[b]);
     }
-    return out;
+    return clipToOutline(out, S);
   }
 
   /* ═══════════════ ROOF PLAN ═══════════════ */
@@ -5033,15 +5392,26 @@ window.BallastDraw = (function () {
       o += '<g id="bldg" transform="rotate(' + fx(rot, 3) + ', ' + fx(rcx, 3) + ', ' + fx(rcy, 3) + ')">';
     }
 
-    o += '<rect class="z1" fill="#E7EEF3" x="' + fx(X(0), 1) + '" y="' + fx(Y(0), 1) +
+    var POLYP = L.poly || polyOf(S);
+    if (POLYP) {
+      /* Irregular outline: zones painted from the engine's own rule, the band
+         lines and the setback drawn as the outline moved inward. */
+      o += polyZoneCells(POLYP, apv, !!S.obtuseCorner, X, Y, s,
+        { 0: "#D4EFEA", 1: "#E7EEF3", 2: "#F8E7B8", 3: "#F5C8C8" }, "z").svg;
+      [[b, "2 " + zBandLbl()], [b5, "5 " + zBandLbl()]].forEach(function (bd) {
+        var Q = polyInset(POLYP, bd[0]);
+        if (Q) o += '<path class="zring" fill="none" d="' + polyPath(Q, X, Y) + '"/>';
+      });
+    }
+    if (!POLYP) o += '<rect class="z1" fill="#E7EEF3" x="' + fx(X(0), 1) + '" y="' + fx(Y(0), 1) +
       '" width="' + fx(WL * s, 1) + '" height="' + fx(WS * s, 1) + '"/>';
-    if (b5 < WL / 2 && b5 < WS / 2) {
+    if (!POLYP && b5 < WL / 2 && b5 < WS / 2) {
       o += '<rect class="z0" fill="#D4EFEA" x="' + fx(X(b5), 1) + '" y="' + fx(Y(b5), 1) + '" width="' +
         fx((WL - 2 * b5) * s, 1) + '" height="' + fx((WS - 2 * b5) * s, 1) + '"/>';
     }
     var cx = Math.min(b, WL / 2), cy = Math.min(b, WS / 2);
     function rect(cls, x, y, w, h, fill) {
-      if (w <= 0.001 || h <= 0.001) return "";
+      if (POLYP || w <= 0.001 || h <= 0.001) return "";
       return '<rect class="' + cls + '" fill="' + fill + '" x="' + fx(X(x), 1) + '" y="' +
         fx(Y(y), 1) + '" width="' + fx(w * s, 1) + '" height="' + fx(h * s, 1) + '"/>';
     }
@@ -5055,6 +5425,7 @@ window.BallastDraw = (function () {
     o += rect("z3", WL - cx, WS - cy, cx, cy, "#F5C8C8");
 
     function zring(dist, label) {
+      if (POLYP) return "";
       var ew = dist + 1e-9 < halfL, ns = dist + 1e-9 < halfS;
       if (!ew && !ns) return "";
       var r = "";
@@ -5112,6 +5483,11 @@ window.BallastDraw = (function () {
     }
 
     var sb = Math.max(n(S.setback, 0), 0);
+    if (POLYP) {
+      var Qs = polyInset(POLYP, sb);
+      if (sb > 0 && Qs) o += '<path class="setb" fill="none" d="' + polyPath(Qs, X, Y) + '"/>';
+      o += '<path class="bldg" fill="none" d="' + polyPath(POLYP, X, Y) + '"/>';
+    } else {
     if (sb > 0 && sb * 2 < WL && sb * 2 < WS) {
       o += '<rect class="setb" fill="none" x="' + fx(X(sb), 1) + '" y="' + fx(Y(sb), 1) + '" width="' +
         fx((WL - 2 * sb) * s, 1) + '" height="' + fx((WS - 2 * sb) * s, 1) + '"/>';
@@ -5119,6 +5495,7 @@ window.BallastDraw = (function () {
 
     o += '<rect class="bldg" fill="none" x="' + fx(X(0), 1) + '" y="' + fx(Y(0), 1) + '" width="' +
       fx(WL * s, 1) + '" height="' + fx(WS * s, 1) + '"/>';
+    }
 
     var ZFILL = { 0: "#2A9D8F", 1: "#3D7EA6", 2: "#E0A01A", 3: "#D64545" };
     function paintArray(Lp, ai, part, on) {
@@ -5218,6 +5595,12 @@ window.BallastDraw = (function () {
         o += txt(X(Lp.ax + occW / 2), Y(Lp.ay + occH / 2),
           Lp.nUnits + " units (too many to draw)", "dv", "middle");
       }
+      (Lp.offRoof || []).forEach(function (q) {
+        o += '<rect class="offroof" x="' + fx(X(q.x + offX), 2) + '" y="' + fx(Y(q.y + offY), 2) +
+          '" width="' + fx(q.w * s, 2) + '" height="' + fx(q.h * s, 2) + '" fill="none"' +
+          ' stroke="#D64545" stroke-width=".7" stroke-dasharray="2 1.5" pointer-events="none">' +
+          '<title>Outside the roof outline or inside the setback \u2014 not placed</title></rect>';
+      });
       if (Lp.duo && Lp.nTentsE) {
         for (var rt = 0; rt < Lp.nTentsE; rt++) {
           var cell = (Lp.cellW != null ? Lp.cellW : Lp.tentW);
@@ -5245,6 +5628,20 @@ window.BallastDraw = (function () {
     var dWlab = selU ? selU.dUO.W : ux;
     var dElab = selU ? selU.dUO.E : WL - ux;
 
+    if (POLYP) {
+      /* On an outline each distance ends at the outline edge it was measured
+         to, so the four dimensions sit on a cross through the unit. */
+      o += '<line class="wit" x1="' + fx(X(ux - dWlab), 1) + '" y1="' + fx(Y(uy), 1) +
+        '" x2="' + fx(X(ux + dElab), 1) + '" y2="' + fx(Y(uy), 1) + '"/>';
+      o += '<line class="wit" x1="' + fx(X(ux), 1) + '" y1="' + fx(Y(uy - dNlab), 1) +
+        '" x2="' + fx(X(ux), 1) + '" y2="' + fx(Y(uy + dSlab), 1) + '"/>';
+      o += hdim(X(ux - dWlab), X(ux), Y(uy) - 8, "d_W " + fx(dWlab, 1), "p");
+      o += hdim(X(ux), X(ux + dElab), Y(uy) - 8, "d_E " + fx(dElab, 1), "p");
+      o += vdim(Y(uy - dNlab), Y(uy), X(ux) - 10, "d_N " + fx(dNlab, 1), "p", false);
+      o += vdim(Y(uy), Y(uy + dSlab), X(ux) - 10, "d_S " + fx(dSlab, 1), "p", false);
+      o += hdim(X(0), X(WL), Y(WS) + 22, "extent " + fx(WL, 1) + " m", "p");
+      o += vdim(Y(0), Y(WS), X(WL) + 22, "extent " + fx(WS, 1) + " m", "p", true);
+    } else {
     o += '<line class="wit" x1="' + fx(X(0), 1) + '" y1="' + fx(Y(uy), 1) +
       '" x2="' + fx(X(ux), 1) + '" y2="' + fx(Y(uy), 1) + '"/>';
     o += '<line class="wit" x1="' + fx(X(ux), 1) + '" y1="' + fx(Y(0), 1) +
@@ -5257,6 +5654,7 @@ window.BallastDraw = (function () {
 
     o += hdim(X(0), X(WL), Y(WS) + 22, "W_L " + fx(WL, 1) + " m", "p");
     o += vdim(Y(0), Y(WS), X(WL) + 22, "W_S " + fx(WS, 1) + " m", "p", true);
+    }
 
     if (rotated) o += '</g>';
 
@@ -5299,7 +5697,9 @@ window.BallastDraw = (function () {
   return {
     section: section, sectionStepped: sectionStepped, sitePlan: sitePlan, zoneMap: zoneMap,
     plan: plan, layoutArray: layoutArray, layoutAll: layoutAll,
-    duoRidgeOf: duoRidgeOf, duoInnerOf: duoInnerOf
+    duoRidgeOf: duoRidgeOf, duoInnerOf: duoInnerOf,
+    poly: { bbox: polyBBox, area: polyArea, inside: polyInside, dists: polyDists,
+            check: polyCheck, inset: polyInset, fits: rectFits, planDims: planDims, of: polyOf }
   };
 })();
 
@@ -6193,7 +6593,7 @@ aeffOut:
     framTribW: 1.134,
     byWhom: "", checkedBy: "", revision: "",
     ballastRho: 2400, trayCover: 100, blockKg: 25, schedExact: false,
-    panelOrient: "landscape",
+    panelOrient: "landscape", polyOn: false, roofPoly: null,
     anchorAll: false, anchorsPerPoint: 2, anchorNRd: null, anchorVRd: null, anchorRef: "",
     roofSDL: null, roofSDLRef: "", terrainRef: "", eJustify: "", shareRef: "LM-R42-L continuous over 4 feet at 1.484 m (350 mm row gap). Ixx 45751 mm4, Zxx 2178.6 mm3, fy 196 MPa, 2 rails.",
     screeningRef: "", surfaceType: "", gapPerim: null, gapRow: null,
@@ -6218,6 +6618,8 @@ aeffOut:
       h: pnum(S.h, 10.5), hpt: pnum(S.hpt, 0.75),
       setback: pnum(S.setback, 3), theta: pnum(S.theta, 1.5),
       rot: pnum(S.bldgRot, 0),
+      polyOn: !!S.polyOn,
+      poly: Array.isArray(S.roofPoly) ? JSON.parse(JSON.stringify(S.roofPoly)) : null,
       x: 10, y: 10
     };
   }
@@ -6243,6 +6645,8 @@ aeffOut:
     S.wLong = rf.WL; S.wShort = rf.WS; S.h = rf.h;
     S.hpt = rf.hpt; S.setback = rf.setback; S.theta = rf.theta;
     S.bldgRot = rf.rot;
+    S.polyOn = !!rf.polyOn;
+    S.roofPoly = Array.isArray(rf.poly) ? JSON.parse(JSON.stringify(rf.poly)) : null;
   }
   /* And take edits made in the Building panel back onto the roof record. */
   function syncRoofFromS() {
@@ -6252,6 +6656,8 @@ aeffOut:
     rf.h = pnum(S.h, rf.h); rf.hpt = pnum(S.hpt, rf.hpt);
     rf.setback = pnum(S.setback, rf.setback); rf.theta = pnum(S.theta, rf.theta);
     rf.rot = pnum(S.bldgRot, rf.rot);
+    rf.polyOn = !!S.polyOn;
+    rf.poly = Array.isArray(S.roofPoly) ? JSON.parse(JSON.stringify(S.roofPoly)) : null;
   }
 
   /* ---- project library ---------------------------------------------------
@@ -6748,7 +7154,7 @@ aeffOut:
                    x: (u.gx != null ? u.gx - u.w / 2 : u.x),
                    y: (u.gy != null ? u.gy - u.h / 2 : u.y),
                    lx: u.x, ly: u.y,
-                   w: u.w, h: u.h, dUO: u.dUO,
+                   w: u.w, h: u.h, dUO: u.dUO, roleOv: u.roleOv || null,
                    roof: u.roof || "lower",
                    distBlock: (u.distBlock == null ? null : u.distBlock),
                    inHalo: !!u.inHalo });
@@ -6802,6 +7208,9 @@ aeffOut:
       /* Position within the unit's own block. Kept separate from nCols/nRows,
          which still describe the array for the whole-array sliding census. */
       i2._roleNC = a.nC;
+      /* v94: where the roof outline removed panels from this block, the unit's
+         role comes from the neighbours it actually has. */
+      i2._role = a.roleOv || null;
       i2._roleNR = a.nR;
       i2.dRowEnd = (dp.E === 0 || dp.W === 0) ? 0 : 5;
       /* Each unit is priced on the roof it actually stands on. base carries the
@@ -7500,6 +7909,16 @@ aeffOut:
     var t = String(s || "").trim().replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "");
     return t || "untitled";
   }
+  /* v94: the roof plan in words, for the reports. */
+  function roofPlanTxt(i) {
+    var PG = window.BallastDraw && window.BallastDraw.poly;
+    if (i && i.polyOn && PG && Array.isArray(i.roofPoly)) {
+      var bb = PG.bbox(i.roofPoly);
+      return "irregular outline, " + i.roofPoly.length + " corners at 90\u00b0, extent " + f(bb.maxX, 1) +
+        " \u00d7 " + f(bb.maxY, 1) + " m, area " + f(Math.abs(PG.area(i.roofPoly)), 0) + " m\u00b2";
+    }
+    return f(i.wLong, 1) + " \u00d7 " + f(i.wShort, 1) + " m";
+  }
   function layoutLabel() {
     return (S.layout === "duo" ? "duo-pitch (east\u2013west tent)" : "mono-pitch") +
       ", " + orientLabel();
@@ -7878,7 +8297,7 @@ aeffOut:
       subhead("Building and roof");
       navyTable(["Item", "Value"], [
         ["Mean roof height, h", f(i.h, 2) + " m"],
-        ["Roof plan", f(i.wLong, 1) + " × " + f(i.wShort, 1) + " m"],
+        ["Roof plan", roofPlanTxt(i)],
         ["Parapet height", f(i.hpt, 2) + " m"],
         ["Roof slope", f(i.theta, 1) + "°"],
         ["Setback, panels to roof edge", f(i.setback, 2) + " m"],
@@ -8762,12 +9181,20 @@ aeffOut:
     why("These are the numbers a checker should confirm against the drawing and the wind map before touching the arithmetic.");
     subhead("Building");
     info4([
-      ["Mean roof height h", f(i.h, 2) + " m", "Plan W_L / W_S", f(i.wLong, 1) + " / " + f(i.wShort, 1) + " m"],
+      ["Mean roof height h", f(i.h, 2) + " m", "Plan W_L / W_S", f(i.wLong, 1) + " / " + f(i.wShort, 1) + " m" +
+        (i.polyOn ? " (bounding rectangle)" : "")],
       ["Roof slope θ", f(i.theta, 1) + "°", "Parapet h_pt", f(i.hpt, 2) + " m"],
       ["Setback from roof edge", f(i.setback, 2) + " m", "Building rotation",
         f(pnum(i.bldgRot != null ? i.bldgRot : S.bldgRot, 0), 0) + "° clockwise"]
     ]);
     para("Building rotation is drawing orientation only. Zone distances remain in building axes (N, S, E, W of the plan).");
+    if (i.polyOn)
+      para("Irregular roof plan: " + roofPlanTxt(i) + ". Each panel's distance to the roof edge is measured " +
+        "along N, S, E and W to the first outline edge, which is the edge-strip definition of the " +
+        "ASCE 7-16 / PV2 zones: outside corners are corner zones, inside (re-entrant) corners are not. " +
+        "W_L and W_S are the outline's bounding rectangle, which gives the larger a_pv and L_b and so the " +
+        "more conservative coefficients. Panels whose footprint leaves the outline, or enters the setback " +
+        "from any edge, are not placed.");
 
     subhead("Array and design unit");
     var nCols = L ? L.nCols : i.nCols;
@@ -10759,7 +11186,8 @@ aeffOut:
     var pitch = Math.max(pnum(S.tribL, 2.278), 0.2);
     var seam = 0.02;
     /* Line up inside the outline of the roof being worked on. */
-    var WL = (aRoof === "upper" && S.stepped) ? pnum(S.upW, 0) : pnum(S.wLong, 84);
+    var WL = (aRoof === "upper" && S.stepped) ? pnum(S.upW, 0)
+      : (window.BallastDraw && window.BallastDraw.poly ? window.BallastDraw.poly.planDims(S).X : pnum(S.wLong, 84));
     var widths = group.map(function (a) {
       return Math.max(1, Math.round(pnum(a.nCols, 1))) * pitch;
     });
@@ -10895,7 +11323,7 @@ aeffOut:
   var SELF = ["codeBasis","edgeModel","dafMode","unitRoof","layout","windBasis","terrain","rhoMode","asceUnits","asceExposure","zoneMode","zoneManual",
     "eMode","zoneArrMode","zoneArr","eSlideMode","combo","ccClass","framCondition","topoType","muLib","deflectorMode","gammaPMode","sharePreset","panelOrient"];
   var CHKF = ["useReturnPeriod","zeInclParapet","showConstants","airGapConfirmed","obtuseCorner",
-    "capFastener","loadShareConfirmed","railCheck","framingCheck","computeTopo","railsTied","deflectorOn","pinCorners","railPeel","stepped","steppedAccept","schedExact","anchorAll"];
+    "capFastener","loadShareConfirmed","railCheck","framingCheck","computeTopo","railsTied","deflectorOn","pinCorners","railPeel","stepped","steppedAccept","schedExact","anchorAll","polyOn"];
   var TXTF = ["deflectorRef","muRef","tunnelRef","byWhom","checkedBy","revision","client","rpJustify",
     "roofSDLRef","terrainRef","eJustify","shareRef","screeningRef","surfaceType","railName","kfJustify","anchorRef"];
   var DIRS = ["N","S","E","W"];
@@ -10939,6 +11367,7 @@ aeffOut:
     var u = L.units[L.sel];
     if (!u || !u.dUO) return;
     S.dUO = { N: u.dUO.N, S: u.dUO.S, E: u.dUO.E, W: u.dUO.W };
+    S._role = u.roleOv || null;
     ["N","S","E","W"].forEach(function (k) {
       if (ae === "dUO_" + k) return;
       el("dUO_" + k).value = Math.round(S.dUO[k] * 1000) / 1000;
@@ -11019,6 +11448,25 @@ aeffOut:
       if (el(k)) el(k).value = S[k];
     });
   }
+  /* v94: with an outline on, W_L and W_S are its bounding rectangle (longer
+     and shorter side), which the engine uses for a_pv and L_b. Turning the
+     outline on with none drawn starts from the current rectangle, so nothing
+     moves until it is edited. */
+  function rectPoly() {
+    var X = Math.max(pnum(S.wLong, 84), 1), Y = Math.max(pnum(S.wShort, 48), 1);
+    return [[0, 0], [X, 0], [X, Y], [0, Y]];
+  }
+  function applyOutlineDims() {
+    if (!S.polyOn) return;
+    var PG = window.BallastDraw && window.BallastDraw.poly;
+    if (!PG) return;
+    if (!Array.isArray(S.roofPoly) || PG.check(S.roofPoly)) S.roofPoly = rectPoly();
+    var bb = PG.bbox(S.roofPoly);
+    S.wLong = Math.round(Math.max(bb.maxX, bb.maxY) * 1000) / 1000;
+    S.wShort = Math.round(Math.min(bb.maxX, bb.maxY) * 1000) / 1000;
+    if (el("wLong") && document.activeElement !== el("wLong")) el("wLong").value = S.wLong;
+    if (el("wShort") && document.activeElement !== el("wShort")) el("wShort").value = S.wShort;
+  }
   function read() {
     S.client = el("client").value;
     S.project = el("proj").value;
@@ -11062,6 +11510,7 @@ aeffOut:
       S.alphaOverride = S.zgOverride = S.zoOverride = S.zcOverride = "";
     }
     CHKF.forEach(function (k) { S[k] = el(k).checked; });
+    applyOutlineDims();
     /* #cO shows the B.3 result while computeTopo is on. Do not let that
        leak into S.cO, or unchecking leaves ballast on the hill. */
     if (S.computeTopo) {
@@ -11084,7 +11533,8 @@ aeffOut:
       S.h2 = S.h1 + S.lp * Math.sin(S.omega * Math.PI / 180);
       if (el("h2") && document.activeElement !== el("h2")) el("h2").value = S.h2;
     }
-    if (ae === "dUO_N") S.dUO.S = Math.max(0, S.wShort - S.dUO.N);
+    if (S.polyOn) { /* an outline has no single opposite edge to mirror */ }
+    else if (ae === "dUO_N") S.dUO.S = Math.max(0, S.wShort - S.dUO.N);
     else if (ae === "dUO_S") S.dUO.N = Math.max(0, S.wShort - S.dUO.S);
     else if (ae === "dUO_E") S.dUO.W = Math.max(0, S.wLong - S.dUO.E);
     else if (ae === "dUO_W") S.dUO.E = Math.max(0, S.wLong - S.dUO.W);
@@ -11319,6 +11769,18 @@ aeffOut:
     }
     show('[data-cf="1"]',      S.capFastener);
     show('[data-anch="1"]',    !!(S.pinCorners || S.anchorAll));
+    show('[data-poly="1"]',    !!S.polyOn);
+    ["wLong", "wShort"].forEach(function (k) {
+      var nn = el(k); if (!nn) return;
+      nn.readOnly = !!S.polyOn;
+      nn.title = S.polyOn ? "From the roof outline's bounding rectangle. Edit the outline to change it." : "";
+    });
+    var olS = el("olSum"), PGs = window.BallastDraw && window.BallastDraw.poly;
+    if (olS && S.polyOn && PGs && Array.isArray(S.roofPoly)) {
+      var bbS = PGs.bbox(S.roofPoly);
+      olS.textContent = S.roofPoly.length + " corners \u00b7 extent " + f(bbS.maxX, 1) + " \u00d7 " +
+        f(bbS.maxY, 1) + " m \u00b7 area " + f(Math.abs(PGs.area(S.roofPoly)), 0) + " m\u00b2";
+    }
     show('[data-rail="1"]',    S.railCheck);
     show('[data-fram="1"]',    S.framingCheck);
     show('[data-cc="1"]',      S.ccClass === "cc1" || S.ccClass === "cc3");
@@ -11391,8 +11853,8 @@ aeffOut:
       var dN = pnum(S.dUO.N, 0), dS = pnum(S.dUO.S, 0), dE = pnum(S.dUO.E, 0), dW = pnum(S.dUO.W, 0);
       var ws = pnum(S.wShort, 0), wl = pnum(S.wLong, 0);
       var ns = dN + dS, ew = dW + dE;
-      var nsOk = Math.abs(ns - ws) <= 0.05 * Math.max(ws, 1);
-      var ewOk = Math.abs(ew - wl) <= 0.05 * Math.max(wl, 1);
+      var nsOk = S.polyOn || Math.abs(ns - ws) <= 0.05 * Math.max(ws, 1);
+      var ewOk = S.polyOn || Math.abs(ew - wl) <= 0.05 * Math.max(wl, 1);
       var rc = (S.selCol >= 1 && S.selRow >= 1)
         ? ("Column <b>" + S.selCol + "</b> of " + S.nCols +
            " · row <b>" + S.selRow + "</b> of " + S.nRows + ". ")
@@ -11685,6 +12147,7 @@ aeffOut:
           var ae2 = document.activeElement && document.activeElement.id;
           if (S.selCol >= 1 && S.selRow >= 1 && !(ae2 && ae2.indexOf("dUO_") === 0)) {
             S.dUO = { N: u.dUO.N, S: u.dUO.S, E: u.dUO.E, W: u.dUO.W };
+            S._role = u.roleOv || null;
             ["N","S","E","W"].forEach(function (k) {
               el("dUO_" + k).value = Math.round(S.dUO[k] * 1000) / 1000;
             });
@@ -13619,6 +14082,291 @@ aeffOut:
         read(); render();
       });
     }
+  })();
+  /* ---- roof outline editor (v94) ------------------------------------------
+     Click the corners on a snapped grid; each new corner is squared to the
+     last, so every edge runs N-S or E-W. Clicking the first corner, or Close
+     shape, adds the one corner needed to close at 90 degrees. Once closed, the
+     edge table edits lengths: every edge but the last two is typed, and the
+     last two follow so the outline still closes. The grid is the roof's own
+     frame (north up), before any building rotation. */
+  (function bindOutline() {
+    var wrap = el("olWrap"), svg = el("olSvg");
+    if (!wrap || !svg) return;
+    var PG = function () { return window.BallastDraw && window.BallastDraw.poly; };
+    var VBW = 640, VBH = 440, PAD = 34;
+    var ed = { pts: [], closed: false, hover: null, raw: null, hl: -1 };
+    var view = { sc: 10, extX: 60, extY: 40 };
+    function gridStep() { return Math.max(0.05, pnum(el("olGrid").value, 1)); }
+    function setView() {
+      var ext = Math.max(5, pnum(el("olExt").value, 60));
+      view.sc = (VBW - 2 * PAD) / ext;
+      view.extX = ext;
+      view.extY = (VBH - 2 * PAD) / view.sc;
+    }
+    function fitExtent(P) {
+      var ext = 60;
+      if (P && P.length) {
+        var bb = PG().bbox(P);
+        ext = Math.max(bb.maxX * 1.15 + 2, (bb.maxY * 1.15 + 2) * (VBW - 2 * PAD) / (VBH - 2 * PAD), 20);
+      }
+      el("olExt").value = Math.ceil(ext / 5) * 5;
+      setView();
+    }
+    function SX(x) { return PAD + x * view.sc; }
+    function SY(y) { return PAD + y * view.sc; }
+    function r3(v) { return Math.round(v * 1000) / 1000; }
+    function snap(v) { var g = gridStep(); return r3(Math.round(v / g) * g); }
+    function toWorld(ev) {
+      var pt = svg.createSVGPoint();
+      pt.x = ev.clientX; pt.y = ev.clientY;
+      var m = svg.getScreenCTM();
+      if (!m) return null;
+      var q = pt.matrixTransform(m.inverse());
+      return [(q.x - PAD) / view.sc, (q.y - PAD) / view.sc];
+    }
+    function dirOf(a, b) {
+      return Math.abs(a[1] - b[1]) < 1e-9 ? (b[0] > a[0] ? "E" : "W") : (b[1] > a[1] ? "S" : "N");
+    }
+    function lenOf(a, b) { return Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]); }
+    /* drop repeated corners and corners in the middle of a straight run */
+    function tidy(P) {
+      var Q = P.map(function (q) { return [r3(q[0]), r3(q[1])]; }), changed = true;
+      while (changed && Q.length > 2) {
+        changed = false;
+        for (var k = 0; k < Q.length; k++) {
+          var a = Q[(k - 1 + Q.length) % Q.length], b = Q[k], c = Q[(k + 1) % Q.length];
+          var same = Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9;
+          var line = (Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(b[0] - c[0]) < 1e-9) ||
+                     (Math.abs(a[1] - b[1]) < 1e-9 && Math.abs(b[1] - c[1]) < 1e-9);
+          if (same || line) { Q.splice(k, 1); changed = true; break; }
+        }
+      }
+      return Q;
+    }
+    function status(t, bad) {
+      var n2 = el("olStat"); if (!n2) return;
+      n2.textContent = t || "";
+      n2.className = "olstat" + (bad ? " bad" : "");
+    }
+    function closeShape() {
+      var P = ed.pts.slice();
+      if (P.length < 3) { status("Click at least three corners first.", true); return false; }
+      var f0 = P[0], l = P[P.length - 1];
+      if (Math.abs(l[0] - f0[0]) > 1e-9 && Math.abs(l[1] - f0[1]) > 1e-9) {
+        var pl = P[P.length - 2], lastH = Math.abs(pl[1] - l[1]) < 1e-9;
+        P.push(lastH ? [l[0], f0[1]] : [f0[0], l[1]]);
+      }
+      P = tidy(P);
+      if (PG().area(P) < 0) P.reverse();
+      var err = PG().check(P);
+      if (err) { status("Cannot close: " + err + ".", true); return false; }
+      ed.pts = P; ed.closed = true;
+      status("Closed. Edit any length in the table; the last two edges follow so the outline still closes.");
+      draw(); table();
+      return true;
+    }
+    function addPoint(q) {
+      var P = ed.pts;
+      if (P.length && lenOf(P[P.length - 1], q) < 1e-9) return;
+      if (P.length >= 2) {
+        var a = P[P.length - 2], b = P[P.length - 1];
+        var d1 = dirOf(a, b), d2 = dirOf(b, q);
+        if (d1 === d2) { P[P.length - 1] = q; return; }
+        if ((d1 === "E" && d2 === "W") || (d1 === "W" && d2 === "E") ||
+            (d1 === "N" && d2 === "S") || (d1 === "S" && d2 === "N")) {
+          status("That doubles back on the last edge. Turn 90° instead.", true);
+          return;
+        }
+      }
+      P.push(q);
+      status(P.length === 1 ? "First corner placed. Click the next corner; edges snap to N-S or E-W."
+        : P.length + " corners. Click the first corner (ringed) or Close shape to finish.");
+    }
+    function hoverPoint(w) {
+      var q = [snap(w[0]), snap(w[1])];
+      ed.raw = q.slice();
+      if (ed.pts.length && !ed.closed) {
+        var l = ed.pts[ed.pts.length - 1];
+        if (Math.abs(q[0] - l[0]) >= Math.abs(q[1] - l[1])) q[1] = l[1]; else q[0] = l[0];
+      }
+      return q;
+    }
+    function draw() {
+      setView();
+      var g = gridStep(), o = "";
+      var major = g >= 1 ? (view.extX > 120 ? 20 : view.extX > 60 ? 10 : 5) : (g >= 0.25 ? 5 : 1);
+      var minorOn = g * view.sc >= 5;
+      var x, y, k;
+      o += '<rect x="0" y="0" width="' + VBW + '" height="' + VBH + '" fill="#fff"/>';
+      if (minorOn) {
+        for (x = 0; x <= view.extX + 1e-9; x += g)
+          o += '<line x1="' + SX(x).toFixed(1) + '" y1="' + PAD + '" x2="' + SX(x).toFixed(1) + '" y2="' + (VBH - PAD) + '" stroke="#EEF2F4" stroke-width=".6"/>';
+        for (y = 0; y <= view.extY + 1e-9; y += g)
+          o += '<line x1="' + PAD + '" y1="' + SY(y).toFixed(1) + '" x2="' + (VBW - PAD) + '" y2="' + SY(y).toFixed(1) + '" stroke="#EEF2F4" stroke-width=".6"/>';
+      }
+      for (x = 0; x <= view.extX + 1e-9; x += major) {
+        o += '<line x1="' + SX(x).toFixed(1) + '" y1="' + PAD + '" x2="' + SX(x).toFixed(1) + '" y2="' + (VBH - PAD) + '" stroke="#D3DCE0" stroke-width=".8"/>';
+        o += '<text x="' + SX(x).toFixed(1) + '" y="' + (PAD - 8) + '" font-size="9" fill="#4A5F68" text-anchor="middle">' + x + '</text>';
+      }
+      for (y = 0; y <= view.extY + 1e-9; y += major) {
+        o += '<line x1="' + PAD + '" y1="' + SY(y).toFixed(1) + '" x2="' + (VBW - PAD) + '" y2="' + SY(y).toFixed(1) + '" stroke="#D3DCE0" stroke-width=".8"/>';
+        o += '<text x="' + (PAD - 6) + '" y="' + (SY(y) + 3).toFixed(1) + '" font-size="9" fill="#4A5F68" text-anchor="end">' + y + '</text>';
+      }
+      o += '<text x="' + (VBW - PAD) + '" y="' + (PAD - 8) + '" font-size="9" fill="#4A5F68" text-anchor="end">N ↑ · metres</text>';
+      var P = ed.pts;
+      if (P.length) {
+        var d = "M" + P.map(function (q) { return SX(q[0]).toFixed(1) + "," + SY(q[1]).toFixed(1); }).join("L");
+        if (ed.closed) {
+          o += '<path d="' + d + 'Z" fill="#CBD8E2" fill-opacity=".75" stroke="#132229" stroke-width="1.6"/>';
+          for (k = 0; k < P.length; k++) {
+            var a = P[k], b = P[(k + 1) % P.length];
+            var mx = (SX(a[0]) + SX(b[0])) / 2, my = (SY(a[1]) + SY(b[1])) / 2;
+            var hz = Math.abs(a[1] - b[1]) < 1e-9;
+            if (k === ed.hl)
+              o += '<line x1="' + SX(a[0]).toFixed(1) + '" y1="' + SY(a[1]).toFixed(1) + '" x2="' + SX(b[0]).toFixed(1) + '" y2="' + SY(b[1]).toFixed(1) + '" stroke="#D64545" stroke-width="3.2"/>';
+            o += '<text x="' + (mx + (hz ? 0 : 6)).toFixed(1) + '" y="' + (my + (hz ? -5 : 3)).toFixed(1) + '" font-size="10" font-weight="700" fill="#132229" text-anchor="' + (hz ? "middle" : "start") + '">' +
+              (k + 1) + ": " + f(lenOf(a, b), 2) + '</text>';
+          }
+        } else {
+          o += '<path d="' + d + '" fill="none" stroke="#132229" stroke-width="1.6"/>';
+          if (ed.hover) {
+            var l = P[P.length - 1];
+            o += '<line x1="' + SX(l[0]).toFixed(1) + '" y1="' + SY(l[1]).toFixed(1) + '" x2="' + SX(ed.hover[0]).toFixed(1) + '" y2="' + SY(ed.hover[1]).toFixed(1) + '" stroke="#D64545" stroke-width="1.2" stroke-dasharray="4 3"/>';
+          }
+          o += '<circle cx="' + SX(P[0][0]).toFixed(1) + '" cy="' + SY(P[0][1]).toFixed(1) + '" r="7" fill="none" stroke="#D64545" stroke-width="1.4"/>';
+        }
+        P.forEach(function (q) {
+          o += '<circle cx="' + SX(q[0]).toFixed(1) + '" cy="' + SY(q[1]).toFixed(1) + '" r="3" fill="#132229"/>';
+        });
+      }
+      if (ed.hover && !ed.closed) {
+        o += '<circle cx="' + SX(ed.hover[0]).toFixed(1) + '" cy="' + SY(ed.hover[1]).toFixed(1) + '" r="3.5" fill="#D64545"/>';
+        var lab = "x " + f(ed.hover[0], 2) + "  y " + f(ed.hover[1], 2);
+        if (P.length) lab += "  ·  edge " + f(lenOf(P[P.length - 1], ed.hover), 2) + " m";
+        o += '<text x="' + PAD + '" y="' + (VBH - 10) + '" font-size="10" fill="#132229">' + lab + '</text>';
+      }
+      svg.innerHTML = o;
+    }
+    function table() {
+      var tb = el("olEdges"); if (!tb) return;
+      var P = ed.pts;
+      if (!ed.closed || P.length < 4) { tb.innerHTML = '<tr><td colspan="3">Close the outline to edit its dimensions.</td></tr>'; return; }
+      var nP = P.length, h = "";
+      for (var k = 0; k < nP; k++) {
+        var a = P[k], b = P[(k + 1) % nP], auto = k >= nP - 2;
+        h += '<tr data-e="' + k + '"><td>' + (k + 1) + '</td><td>' + dirOf(a, b) + '</td><td>' +
+          (auto ? f(lenOf(a, b), 3) + ' <span class="eyebrow">closes</span>'
+                : '<input data-len="' + k + '" value="' + r3(lenOf(a, b)) + '"/>') + '</td></tr>';
+      }
+      tb.innerHTML = h;
+    }
+    /* Retype edge k: walk the typed edges, then close with the last two. */
+    function setLength(k, L) {
+      var P = ed.pts, nP = P.length;
+      if (!(L > 0.01)) { status("Edge " + (k + 1) + " must be longer than 1 cm.", true); return false; }
+      var dirs = [], lens = [], i;
+      for (i = 0; i < nP; i++) { dirs.push(dirOf(P[i], P[(i + 1) % nP])); lens.push(lenOf(P[i], P[(i + 1) % nP])); }
+      lens[k] = L;
+      var V = { E: [1, 0], W: [-1, 0], S: [0, 1], N: [0, -1] };
+      var Q = [P[0].slice()];
+      for (i = 0; i < nP - 2; i++)
+        Q.push([r3(Q[i][0] + V[dirs[i]][0] * lens[i]), r3(Q[i][1] + V[dirs[i]][1] * lens[i])]);
+      var last = Q[nP - 2], vert = dirs[nP - 2] === "N" || dirs[nP - 2] === "S";
+      Q.push(vert ? [last[0], Q[0][1]] : [Q[0][0], last[1]]);
+      var ok = dirOf(Q[nP - 2], Q[nP - 1]) === dirs[nP - 2] && lenOf(Q[nP - 2], Q[nP - 1]) > 0.01 &&
+               dirOf(Q[nP - 1], Q[0]) === dirs[nP - 1] && lenOf(Q[nP - 1], Q[0]) > 0.01;
+      var err = ok ? PG().check(Q) : "the last two edges cannot close it that way";
+      if (err) { status("Edge " + (k + 1) + " = " + f(L, 3) + " m does not work: " + err + ".", true); return false; }
+      ed.pts = Q;
+      status("Edge " + (k + 1) + " set to " + f(L, 3) + " m.");
+      return true;
+    }
+    function open() {
+      var P = (S.polyOn && Array.isArray(S.roofPoly) && PG() && !PG().check(S.roofPoly))
+        ? JSON.parse(JSON.stringify(S.roofPoly)) : rectPoly();
+      ed = { pts: P, closed: true, hover: null, raw: null, hl: -1 };
+      fitExtent(P);
+      wrap.hidden = false;
+      status("Edit the lengths, or Clear and click new corners on the grid.");
+      draw(); table();
+    }
+    function shut() { wrap.hidden = true; }
+
+    var eb = el("olEdit"); if (eb) eb.onclick = open;
+    el("olCancel").onclick = shut;
+    el("olRect").onclick = function () {
+      ed.pts = rectPoly(); ed.closed = true; ed.hl = -1;
+      fitExtent(ed.pts); status("Started from the W_L × W_S rectangle."); draw(); table();
+    };
+    el("olClear").onclick = function () {
+      ed.pts = []; ed.closed = false; ed.hl = -1;
+      status("Click the first corner on the grid."); draw(); table();
+    };
+    el("olUndo").onclick = function () {
+      if (ed.closed) { ed.closed = false; status("Reopened. Click to add corners, or Close shape."); }
+      else ed.pts.pop();
+      draw(); table();
+    };
+    el("olClose").onclick = function () { if (!ed.closed) closeShape(); };
+    el("olGrid").onchange = function () { draw(); };
+    el("olExt").onchange = function () { draw(); };
+    el("olApply").onclick = function () {
+      if (!ed.closed) { if (!closeShape()) return; }
+      var P = tidy(ed.pts);
+      if (PG().area(P) < 0) P.reverse();
+      var err = PG().check(P);
+      if (err) { status("Cannot use this outline: " + err + ".", true); return; }
+      var bb = PG().bbox(P);
+      P = P.map(function (q) { return [r3(q[0] - bb.minX), r3(q[1] - bb.minY)]; });
+      S.roofPoly = P;
+      S.polyOn = true;
+      el("polyOn").checked = true;
+      shut();
+      read(); render();
+      persistNow();
+      toast("Roof outline applied — " + P.length + " corners");
+    };
+    svg.addEventListener("mousemove", function (ev) {
+      if (ed.closed) return;
+      var w = toWorld(ev); if (!w) return;
+      ed.hover = hoverPoint(w);
+      draw();
+    });
+    svg.addEventListener("mouseleave", function () { ed.hover = null; if (!ed.closed) draw(); });
+    svg.addEventListener("click", function (ev) {
+      if (ed.closed) { status("The outline is closed. Undo corner reopens it; Clear starts again.", false); return; }
+      var w = toWorld(ev); if (!w) return;
+      var q = hoverPoint(w), P = ed.pts;
+      if (P.length >= 3 && ed.raw && Math.abs(ed.raw[0] - P[0][0]) < 1e-9 && Math.abs(ed.raw[1] - P[0][1]) < 1e-9) {
+        closeShape(); return;
+      }
+      addPoint(q);
+      draw(); table();
+    });
+    el("olEdges").addEventListener("change", function (ev) {
+      var t = ev.target;
+      if (!t || !t.getAttribute || t.getAttribute("data-len") === null) return;
+      var k = parseInt(t.getAttribute("data-len"), 10);
+      if (!setLength(k, pnum(t.value, NaN))) t.value = r3(lenOf(ed.pts[k], ed.pts[(k + 1) % ed.pts.length]));
+      draw(); table();
+    });
+    el("olEdges").addEventListener("mouseover", function (ev) {
+      var tr = ev.target && ev.target.closest ? ev.target.closest("tr[data-e]") : null;
+      var k = tr ? parseInt(tr.getAttribute("data-e"), 10) : -1;
+      if (k !== ed.hl) {
+        ed.hl = k;
+        Array.prototype.forEach.call(el("olEdges").querySelectorAll("tr"), function (r) {
+          r.classList.toggle("hl", r.getAttribute("data-e") === String(k));
+        });
+        draw();
+      }
+    });
+    document.addEventListener("keydown", function (ev) {
+      if (wrap.hidden) return;
+      if (ev.key === "Escape") shut();
+      else if (ev.key === "Enter" && !ed.closed && document.activeElement && document.activeElement.tagName !== "INPUT") closeShape();
+    });
   })();
   (function bindRailPick() {
     var n = el("railPick");
