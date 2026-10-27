@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="format-detection" content="telephone=no"/>
-<title>Ballast — rooftop PV ballast design · v96</title>
+<title>Ballast — rooftop PV ballast design · v97</title>
 <style>
 :root{
   --paper:#EDF0F1; --panel:#F8FAFA; --sunk:#E3E8E9;
@@ -599,7 +599,7 @@ tbody tr:last-child td{border-bottom:0}
       <span class="chip">rational design</span>
       <span class="chip">ASTM D1894</span>
       <span class="chip" id="chipCode">PV2-2017 basis</span>
-      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v96 · engine 4.4.3</span>
+      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v97 · engine 4.4.4</span>
     </div>
     <div class="tools">
       <button type="button" id="newBtn" class="go" title="Start a blank project. Clears the name, every evidence reference and all inherited assumptions.">New project</button>
@@ -1094,12 +1094,15 @@ tbody tr:last-child td{border-bottom:0}
       <div class="sub" data-anch="1">Chemical anchors</div>
       <div class="grid" data-anch="1">
         <label class="f"><span>Anchors per unit</span><input id="anchorsPerPoint"/></label>
+        <label class="f" title="The two rails cross the panel at right angles to its long side. This is how far each rail is in from the end of the long side, as a fraction of the long side: 0.25 puts them at the quarter points."><span>Rails in from each end <i>× long side</i></span><input id="railFrac"/></label>
         <label class="f" title="Design tension resistance of ONE anchor, from its ETA for the actual substrate, embedment, edge distance and spacing."><span>N<sub>Rd</sub> <i>per anchor, kN</i></span><input id="anchorNRd"/></label>
         <label class="f" title="Design shear resistance of ONE anchor, from its ETA for the same installation."><span>V<sub>Rd</sub> <i>per anchor, kN</i></span><input id="anchorVRd"/></label>
         <label class="f"><span>Anchor &amp; ETA <i>reference</i></span><input id="anchorRef"/></label>
       </div>
-      <p class="note" data-anch="1">Anchors sit on the two rails under the module's short sides, half on
-        each: along the row in portrait, up the slope in landscape. Each anchor is a fastener, so its wind
+      <p class="note" data-anch="1">The two rails cross each panel at right angles to its long side, set in
+        from each end by the fraction above (0.25 = quarter points), with the anchors on the rails at the
+        middle of the panel, half on each rail. The rails run along the row in portrait and up the slope
+        in landscape. Each anchor is a fastener, so its wind
         area is capped at its own tributary area (PV2 §4) — no load sharing. Per anchor:
         N<sub>Ed</sub> = c·(γ<sub>W</sub>F<sub>v</sub> − γ<sub>G</sub>G<sub>s</sub>) and
         V<sub>Ed</sub> = c·γ<sub>W</sub>F<sub>h</sub>, where c is the most loaded anchor's share — the rail
@@ -1424,7 +1427,7 @@ tbody tr:last-child td{border-bottom:0}
   var SANS_CR_COEFF = 1.36;
   /* SANS 10160-3 Table 4 — air density vs altitude (kg/m³). Linear interpolation. */
   var SANS_RHO_TABLE = [[0, 1.20], [500, 1.12], [1000, 1.06], [1500, 1.00], [2000, 0.94]];
-  var ENGINE_VERSION = "4.4.3";
+  var ENGINE_VERSION = "4.4.4";
   var SCHEMA_VERSION = 4;
 
   /* ---- ASCE 7 exposure constants (Table 26.9-1) --------------------------- */
@@ -2926,11 +2929,13 @@ tbody tr:last-child td{border-bottom:0}
        anchors on the unit), with no load sharing and no one-third widening. The
        smaller area gives the higher coefficient.
 
-       The anchors sit on the two rails under the module's SHORT sides, half on
-       each. Portrait: the short sides are the low and high edges, so the rails
-       run along the row at x1 and x2 along the chord and the centre of pressure
-       e decides which rail takes more. Landscape: the short sides are the east
-       and west ends, so the rails run up the slope and share equally. Where the
+       The anchors sit on two rails that cross the module at right angles to its
+       LONG side, at railFrac and 1 - railFrac along it (v97; 0.25 = quarter
+       points), half the anchors on each. Portrait: the long side runs up the
+       slope, so the rails run along the row at railFrac and 1 - railFrac along
+       the chord and the centre of pressure e decides which rail takes more.
+       Landscape: the long side runs along the row, so the rails run up the
+       slope and share equally. Where the
        peeling case applies (array edge or corner, PV2-2017 / Banks), the whole
        unit's force goes to one rail. Along a rail the anchors share equally.
        c is the share of the unit's net force on the most loaded anchor:
@@ -2949,8 +2954,8 @@ tbody tr:last-child td{border-bottom:0}
           " so each of the two rails carries the same number.");
       var perRail = nA / 2;
       var railsAlongRow = i.panelOrient === "portrait";
-      var eA = clamp(num(i.eccen, 0.5), 0, 1), x1A = clamp(num(i.x1, 0.1), 0, 1),
-          x2A = clamp(num(i.x2, 0.9), 0, 1);
+      var rfA = clamp(num(i.railFrac, 0.25), 0.05, 0.45);
+      var eA = clamp(num(i.eccen, 0.5), 0, 1), x1A = rfA, x2A = 1 - rfA;
       var hiA = x2A - x1A > 1e-6 ? clamp((eA - x1A) / (x2A - x1A), 0, 1) : 0.5;
       var peelA = !!(i.railPeel && (roleU.corner || roleU.edge));
       var railShare = peelA ? 1 : (railsAlongRow ? Math.max(hiA, 1 - hiA) : 0.5);
@@ -2969,7 +2974,7 @@ tbody tr:last-child td{border-bottom:0}
       var uN = haveR ? NEd / NRd : NaN, uV = haveR ? VEd / VRd : NaN;
       var uI = haveR ? Math.pow(uN, 1.5) + Math.pow(uV, 1.5) : NaN;
       anchor = {
-        n: nA, perRail: perRail, rails: railsAlongRow ? "row" : "slope", railShare: railShare,
+        n: nA, perRail: perRail, rails: railsAlongRow ? "row" : "slope", railShare: railShare, railFrac: rfA,
         peel: peelA, c: cA, Atrib: AtA, An: AnA, nom: nomA.value, GCrn: GCrnA, p: q * GCrnA,
         F: FA, Fv: FvA, Fh: FhA, NEd: NEd, VEd: VEd, NRd: NRd, VRd: VRd,
         have: haveR, uN: uN, uV: uV, uI: uI,
@@ -6652,7 +6657,7 @@ aeffOut:
     byWhom: "", checkedBy: "", revision: "",
     ballastRho: 2400, trayCover: 100, blockKg: 25, schedExact: false,
     panelOrient: "landscape", polyOn: false, roofPoly: null, zone3Convex: false,
-    anchorAll: false, anchorsPerPoint: 2, anchorNRd: null, anchorVRd: null, anchorRef: "",
+    anchorAll: false, anchorsPerPoint: 2, anchorNRd: null, anchorVRd: null, anchorRef: "", railFrac: 0.25,
     roofSDL: null, roofSDLRef: "", terrainRef: "", eJustify: "", shareRef: "LM-R42-L continuous over 4 feet at 1.484 m (350 mm row gap). Ixx 45751 mm4, Zxx 2178.6 mm3, fy 196 MPa, 2 rails.",
     screeningRef: "", surfaceType: "", gapPerim: null, gapRow: null,
     railName: "LM-R42-L", railI: 45751, railZ: 2178.6, railFy: 196, railE: 70000, railGM: 1.1,
@@ -7502,19 +7507,19 @@ aeffOut:
       /* The tier mass on the point itself, sized to the cell and skipped when
          it would be too small to read. Labels go on top of every rect, so they
          are collected and written after the loop. */
-      /* Anchors (v93): on the two rails under the module's short sides. In
-         portrait the rails run along the row near the top and bottom of the
-         cell; in landscape they run up the slope near its left and right ends.
-         Each rail is drawn as a line with its anchors spaced evenly along it.
-         The label sits between the rails. Positions along a rail are
-         schematic: set out at the rail feet. */
+      /* Anchors (v97): on the two rails that cross the panel at right angles
+         to its long side, railFrac in from each end of it (0.25 = quarter
+         points). In portrait the long side runs north-south, so the rails are
+         horizontal lines across the cell; in landscape they are vertical. The
+         anchors sit on the rails at the middle of the panel. The label sits
+         between the rails. */
       var x0c = parseFloat(px(r.x)), y0c = parseFloat(py(r.y));
       var padX = 0, padY = 0;
       if (an) {
         var row = an.rails === "row", pr = an.perRail || Math.max(1, an.n / 2);
         var along = row ? cw : ch, across = row ? ch : cw;
         var mr = Math.max(1.2, Math.min(3.2, Math.min(along / (pr * 2.6), across * 0.13)));
-        var inset = Math.max(mr + 0.8, across * 0.12);
+        var inset = Math.max(mr + 0.8, across * (an.railFrac != null ? an.railFrac : 0.25));
         [inset, across - inset].forEach(function (off) {
           var lx1 = row ? x0c + 0.5 : x0c + off, ly1 = row ? y0c + off : y0c + 0.5;
           var lx2 = row ? x0c + cw - 0.5 : x0c + off, ly2 = row ? y0c + off : y0c + ch - 0.5;
@@ -7564,7 +7569,7 @@ aeffOut:
       o += '<circle cx="4" cy="' + ay0.toFixed(1) + '" r="3" fill="#132229" stroke="#FFFFFF" stroke-width=".6"/>' +
         '<text x="12" y="' + (ay0 + 3.3).toFixed(1) + '" font-size="9.5" fill="#4A5F68">' +
         "chemical anchor on a rail \u00b7 " + aN[0].anchor.n + " per anchored unit, " +
-        aN[0].anchor.perRail + " on each rail under the module\u2019s short sides \u00b7 " + aN.length +
+        aN[0].anchor.perRail + " on each of the two rails across the long side \u00b7 " + aN.length +
         " unit" + (aN.length === 1 ? "" : "s") + " anchored \u00b7 set out at the rail feet</text>";
     }
     o += '<text x="' + VB + '" y="' + (by0 - 3).toFixed(1) +
@@ -7831,7 +7836,8 @@ aeffOut:
             (A.fail ? "<b style=\"color:var(--gov)\">" + A.fail + " unit" + (A.fail === 1 ? "" : "s") +
               " fail the anchor check.</b>" : "Every anchor passes.")
           : "<b style=\"color:var(--gov)\">N_Rd and V_Rd are not entered, so the anchors are not checked.</b>") +
-        " Anchors sit on the two rails under the module\u2019s short sides (" +
+        " Anchors sit on the two rails that cross each panel at right angles to its long side, " +
+        f((A.worst ? A.worst.anchor.railFrac : pnum(S.railFrac, 0.25)), 2) + " of the long side in from each end (" +
         (A.worst && A.worst.anchor.rails === "slope" || (!A.worst && S.panelOrient !== "portrait")
           ? "up the slope, landscape" : "along the row, portrait") + "). Forces are for the most loaded " +
         "anchor on each unit; edge and corner units take the peeling case, with the whole unit on one " +
@@ -8042,7 +8048,9 @@ aeffOut:
         (A.fail ? "  \u2014  " + A.fail + " unit" + (A.fail === 1 ? "" : "s") + " FAIL" : "  \u2014  all pass")
         : "not checked"]
     ]);
-    K.why("The anchors sit on the two rails under the module's short sides, half on each: the " +
+    K.why("The anchors sit on two rails that cross each panel at right angles to its long side, " +
+      "set in " + f(A.worst ? A.worst.anchor.railFrac : pnum(S.railFrac, 0.25), 2) + " of the long " +
+      "side from each end, with half the anchors on each rail at the middle of the panel: the " +
       "rails run along the row in portrait and up the slope in landscape. Each anchor is a " +
       "fastener, so its effective wind area is capped at the area tributary to it (SEAOC PV2 " +
       "\u00a74), with no load sharing between supports. The most loaded anchor takes a share c of " +
@@ -8945,8 +8953,9 @@ aeffOut:
       if (an) {
         subhead("Chemical anchors on the design unit");
         navyTable(["Step", "Value"], [
-          ["Anchors on the unit, n", an.n + "  (" + an.perRail + " on each of the two rails under the " +
-            "module's short sides, " + (an.rails === "row" ? "along the row" : "up the slope") + ")"],
+          ["Anchors on the unit, n", an.n + "  (" + an.perRail + " on each of the two rails across the " +
+            "long side, " + f(an.railFrac, 2) + " of it in from each end, " +
+            (an.rails === "row" ? "along the row" : "up the slope") + ")"],
           ["Share of the most loaded anchor, c", f(an.railShare, 3) + " on the rail / " + an.perRail +
             " = " + f(an.c, 3) + (an.peel ? "  (edge peeling: whole unit on one rail)"
               : an.rails === "row" ? "  (centre of pressure between the low and high rails)"
@@ -11394,7 +11403,7 @@ aeffOut:
     "topoH","topoLu","topoLd","topoX","topoZ",
     "roofSDL","gapPerim","gapRow",
     "railI","railZ","railFy","railE","railGM","railsPerPanel","footSpacing","deflLimit",
-    "ballastRho","trayCover","blockKg","anchorsPerPoint","anchorNRd","anchorVRd"];
+    "ballastRho","trayCover","blockKg","anchorsPerPoint","anchorNRd","anchorVRd","railFrac"];
   var SELF = ["codeBasis","edgeModel","dafMode","unitRoof","layout","windBasis","terrain","rhoMode","asceUnits","asceExposure","zoneMode","zoneManual",
     "eMode","zoneArrMode","zoneArr","eSlideMode","combo","ccClass","framCondition","topoType","muLib","deflectorMode","gammaPMode","sharePreset","panelOrient"];
   var CHKF = ["useReturnPeriod","zeInclParapet","showConstants","airGapConfirmed","obtuseCorner",
