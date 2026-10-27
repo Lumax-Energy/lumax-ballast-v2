@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="format-detection" content="telephone=no"/>
-<title>Ballast — rooftop PV ballast design · v94</title>
+<title>Ballast — rooftop PV ballast design · v95</title>
 <style>
 :root{
   --paper:#EDF0F1; --panel:#F8FAFA; --sunk:#E3E8E9;
@@ -599,7 +599,7 @@ tbody tr:last-child td{border-bottom:0}
       <span class="chip">rational design</span>
       <span class="chip">ASTM D1894</span>
       <span class="chip" id="chipCode">PV2-2017 basis</span>
-      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v94 · engine 4.4.2</span>
+      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v95 · engine 4.4.2</span>
     </div>
     <div class="tools">
       <button type="button" id="newBtn" class="go" title="Start a blank project. Clears the name, every evidence reference and all inherited assumptions.">New project</button>
@@ -13842,6 +13842,14 @@ aeffOut:
            selection. The schedule must not depend on which unit is selected. */
         var holdSw = JSON.parse(JSON.stringify(S));
         try {
+          /* v95: run on the default job, not on the project open on screen. Up
+             to v94 this test borrowed the live project and changed only a few
+             fields, so a roof outline that clipped the test array, or the full
+             anchor system, failed it although the engine was right. */
+          Object.keys(DEF).forEach(function (k) {
+            S[k] = DEF[k] === undefined ? undefined : JSON.parse(JSON.stringify(DEF[k]));
+          });
+          S.roofs = []; S.roofI = 0; S._role = null;
           S.layout = "mono"; S.arrayRot = 0; S.stepped = false;
           S.pinCorners = true; S.loadShare = 4; S.sharePreset = "custom";
           S.arrays = [snapshotArray({ name: "Array A", nCols: 6, nRows: 4, arrayDX: 0, arrayDY: 0,
