@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="format-detection" content="telephone=no"/>
-<title>Ballast — rooftop PV ballast design · v98</title>
+<title>Ballast — rooftop PV ballast design · v99</title>
 <style>
 :root{
   --paper:#EDF0F1; --panel:#F8FAFA; --sunk:#E3E8E9;
@@ -599,7 +599,7 @@ tbody tr:last-child td{border-bottom:0}
       <span class="chip">rational design</span>
       <span class="chip">ASTM D1894</span>
       <span class="chip" id="chipCode">PV2-2017 basis</span>
-      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v98 · engine 4.4.4</span>
+      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v99 · engine 4.4.4</span>
     </div>
     <div class="tools">
       <button type="button" id="newBtn" class="go" title="Start a blank project. Clears the name, every evidence reference and all inherited assumptions.">New project</button>
@@ -7479,7 +7479,7 @@ aeffOut:
         ' m above the lower roof</title></rect>';
     }
 
-    var labels = "", marks = "";
+    var labels = "", marks = "", unlabeled = 0;
     sc.recs.forEach(function (r) {
       var up = r.roof === "upper";
       var tk = sc.anchorAll ? null : key.of(r.kg);
@@ -7543,15 +7543,25 @@ aeffOut:
       if (tk) {
         var txt = f0(sc.exact ? exactOf(r.kg) : tk.kg);
         var chL = ch - 2 * padY, cwL = cw - 2 * padX;
-        var fs = Math.min(chL * 0.72, cwL / (txt.length * 0.62 + 0.3));
+        /* v99: write the number along the panel's long side when that gives
+           the larger figure. A narrow panel (duo-pitch landscape, or a big
+           site drawn small) could not fit three digits across, so its label
+           was dropped; turned 90 degrees it fits. */
+        var fsH = Math.min(chL * 0.72, cwL / (txt.length * 0.62 + 0.3));
+        var fsV = Math.min(cwL * 0.72, chL / (txt.length * 0.62 + 0.3));
+        var turn = fsV > fsH * 1.05;
+        var fs = turn ? fsV : fsH;
+        var lx = x0c + cw / 2, ly = y0c + ch / 2;
         if (fs >= 4.5)
-          labels += '<text x="' + (x0c + cw / 2).toFixed(1) + '" y="' +
-            (y0c + ch / 2).toFixed(1) + '" font-size="' + fs.toFixed(1) +
+          labels += '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" font-size="' + fs.toFixed(1) +
             '" fill="' + tk.ink + '" text-anchor="middle" dominant-baseline="central"' +
+            (turn ? ' transform="rotate(-90 ' + lx.toFixed(1) + ' ' + ly.toFixed(1) + ')"' : '') +
             ' pointer-events="none">' + txt + '</text>';
+        else unlabeled++;
       }
     });
     o += labels + marks;
+    sc._unlabeled = unlabeled;
 
     /* Colour key: one swatch per tier (or per colour band with exact values),
        lightest first, each labelled with the mass it stands for. */
@@ -7866,7 +7876,11 @@ aeffOut:
           ? t.label + " kg (" + t.n + ")"
           : f0(t.kg) + " kg \u00b7 " + blocksTxt(t.kg) + " \u00d7 " + t.n) + "</span>";
       }).join("") +
-      '<span>hover a unit for its figures</span></div></div></div>';
+      '<span>hover a unit for its figures</span>' +
+      (sc._unlabeled ? '<span style="color:var(--gov)">' + sc._unlabeled + ' point' +
+        (sc._unlabeled === 1 ? ' is' : 's are') + ' too small at this scale to carry a number — ' +
+        'hover them, or read the ' + (sc.exact ? 'point' : 'tier') + ' table</span>' : '') +
+      '</div></div></div>';
     el("schedStamp").innerHTML = "swept " + sc.at.toTimeString().slice(0, 5) +
       " \u00b7 " + sc.n + " units";
     el("schedStale").textContent = "";
