@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="format-detection" content="telephone=no"/>
-<title>Ballast — rooftop PV ballast design · v99</title>
+<title>Ballast — rooftop PV ballast design · v100</title>
 <style>
 :root{
   --paper:#EDF0F1; --panel:#F8FAFA; --sunk:#E3E8E9;
@@ -382,6 +382,11 @@ details.more[open]>summary::before{content:"– "}
 .draw-g .mod-hair{fill:none;stroke:#132229;stroke-width:.55;pointer-events:none}
 .draw-g .mod-sel-h{fill:none;stroke:#132229;stroke-width:3.6;pointer-events:none}
 #figPlan{touch-action:none}
+#figPlan svg{max-height:min(85vh,1000px)}
+#figPlan.panning,#figPlan.panning svg{cursor:grabbing}
+.planzoom{display:flex;flex-wrap:wrap;gap:.35rem .5rem;align-items:center;margin:0 0 -.2rem}
+.planzoom button{min-width:2.1rem;padding:.25rem .6rem}
+.planzoom-hint{color:var(--ink2)}
 #figPlan.dragging,#figPlan.dragging .mod,#figPlan.dragging .mod-hit{cursor:grabbing}
 .draw-g .mod.m0{fill:#2A9D8F}
 .draw-g .mod.m1{fill:#3D7EA6}
@@ -485,15 +490,15 @@ details.more[open]>summary::before{content:"– "}
 .olwrap{position:fixed;inset:0;z-index:90;background:rgba(19,34,41,.45);display:flex;
   align-items:center;justify-content:center;padding:16px}
 .olwrap[hidden]{display:none}
-.olbox{background:var(--panel);width:100%;max-width:1080px;max-height:calc(100vh - 32px);overflow:auto;
+.olbox{background:var(--panel);width:100%;max-width:min(1400px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;
   border:1px solid var(--rule);box-shadow:0 12px 40px rgba(0,0,0,.28);padding:1rem 1.1rem}
 .olhead{display:flex;flex-wrap:wrap;gap:.3rem 1rem;align-items:baseline;margin-bottom:.6rem}
 .olhead h3{margin:0;font-family:var(--disp);font-size:1.1rem}
 .oltools{display:flex;flex-wrap:wrap;gap:.5rem .7rem;align-items:flex-end;margin-bottom:.6rem}
 .oltools .f.inl{width:7.5rem}
-.olmain{display:grid;gap:.8rem;grid-template-columns:minmax(0,1fr) 19rem}
+.olmain{display:grid;gap:.8rem;grid-template-columns:minmax(0,1fr) 16rem}
 @media (max-width:880px){.olmain{grid-template-columns:1fr}}
-#olSvg{width:100%;height:auto;display:block;background:#fff;border:1px solid var(--rule);
+#olSvg{width:100%;height:auto;max-height:max(320px,calc(100vh - 240px));margin:0 auto;display:block;background:#fff;border:1px solid var(--rule);
   cursor:crosshair;touch-action:none;user-select:none}
 .olside{min-width:0}
 .olside table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.72rem}
@@ -599,7 +604,7 @@ tbody tr:last-child td{border-bottom:0}
       <span class="chip">rational design</span>
       <span class="chip">ASTM D1894</span>
       <span class="chip" id="chipCode">PV2-2017 basis</span>
-      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v99 · engine 4.4.4</span>
+      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v100 · engine 4.4.4</span>
     </div>
     <div class="tools">
       <button type="button" id="newBtn" class="go" title="Start a blank project. Clears the name, every evidence reference and all inherited assumptions.">New project</button>
@@ -1028,6 +1033,14 @@ tbody tr:last-child td{border-bottom:0}
         <figure id="figSite"></figure>
         <figure id="figStep"></figure>
         <figure id="figSection"></figure>
+        <div class="planzoom" id="planZoom" role="group" aria-label="Zoom the roof plan">
+          <button type="button" data-z="in" title="Zoom in">+</button>
+          <button type="button" data-z="out" title="Zoom out">&minus;</button>
+          <button type="button" data-z="arrays" title="Zoom to the panels on this roof">Zoom to panels</button>
+          <button type="button" data-z="fit" title="Show the whole roof">Whole roof</button>
+          <span class="eyebrow" id="planZoomOut">100%</span>
+          <span class="eyebrow planzoom-hint">Ctrl + wheel, trackpad pinch or two fingers to zoom · drag empty roof to pan</span>
+        </div>
         <figure id="figPlan"></figure>
         <aside class="plan-leg" id="planLeg" aria-label="Roof-plan legend">
           <h3>Legend</h3>
@@ -1322,7 +1335,8 @@ tbody tr:last-child td{border-bottom:0}
           <option value="0.1">0.1</option><option value="0.25">0.25</option><option value="0.5">0.5</option>
           <option value="1" selected>1</option><option value="2">2</option><option value="5">5</option>
         </select></label>
-      <label class="f inl"><span>Canvas width <i>m</i></span><input id="olExt"/></label>
+      <label class="f inl" title="Width of ground shown across the canvas. Smaller zooms in."><span>View width <i>m</i></span><input id="olExt"/></label>
+      <button type="button" id="olFit">Fit</button>
       <button type="button" id="olRect">Start from W_L × W_S</button>
       <button type="button" id="olUndo">Undo corner</button>
       <button type="button" id="olClear">Clear</button>
@@ -3949,10 +3963,17 @@ window.BallastDraw = (function () {
     return { svg: o + '</g>', height: h };
   }
 
+  /* the bar length: 20, 10, 5, 2 or 1 m, so it stays 36-96 units long */
+  function scaleBarM(unitsPerM) {
+    var m = 10, px = m * unitsPerM;
+    if (px < 36) { m = 20; px = m * unitsPerM; }
+    if (px > 96) { m = 5; px = m * unitsPerM; }
+    if (px > 96) { m = 2; px = m * unitsPerM; }
+    if (px > 96) { m = 1; px = m * unitsPerM; }
+    return { m: m, px: px };
+  }
   function scaleBar(x, y, metresPerPx) {
-    var m = 10, px = m * metresPerPx;
-    if (px < 36) { m = 20; px = m * metresPerPx; }
-    if (px > 96) { m = 5; px = m * metresPerPx; }
+    var sbm = scaleBarM(metresPerPx), m = sbm.m, px = sbm.px;
     var half = px / 2;
     var o = '<g class="scale" transform="translate(' + fx(x, 1) + ',' + fx(y, 1) + ')">';
     o += '<rect class="sf sf0" x="0" y="-4" width="' + fx(half, 1) + '" height="8"/>';
@@ -4976,7 +4997,7 @@ window.BallastDraw = (function () {
     /* Room above and to the left for two rows of zone-band dimensions. */
     var VB_W = 760, ML = 112, MR = 200, MT = 112, MB = 50;
     var PW = VB_W - ML - MR;
-    var sc = Math.min(PW / WL, 330 / WS);
+    var sc = Math.min(PW / WL, 560 / WS);   /* v100: 330 -> 560 so a tall roof is not pillarboxed */
     var PH = WS * sc, VB_H = MT + PH + MB;
     var ox = ML + (PW - WL * sc) / 2;
     var X = function (v) { return ox + v * sc; };
@@ -5351,7 +5372,8 @@ window.BallastDraw = (function () {
   }
 
   /* ═══════════════ ROOF PLAN ═══════════════ */
-  function plan(S0, r) {
+  function plan(S0, r, opt) {
+    opt = opt || {};
     var S = (r && r.inputs) ? r.inputs : S0;
     var packs = layoutAll(S, r);
     var noArrays = !packs.length;
@@ -5371,7 +5393,9 @@ window.BallastDraw = (function () {
          its setback can still be drawn, then the guard below prints the note. */
       L = layoutArray(S, r);
     }
-    var VB_W = 940, VB_H = 520, ML = 96, MR = 200, MB = 48;
+    /* v100: on screen the legend is the HTML list under the plan, so the
+       200-unit legend column is kept only for the report (opt.print). */
+    var VB_W = 940, VB_H = 520, ML = 96, MR = opt.print ? 200 : 64, MB = opt.print ? 48 : 64;
     /* The top margin is sized from the caption, not fixed. The roof is centred
        vertically, so its top edge is never above MT; the d_W / d_E strings sit
        16 px above that edge. A fixed 66 px let a three-line caption run into
@@ -5385,14 +5409,31 @@ window.BallastDraw = (function () {
       if (bb + 1e-9 >= Math.min(wl / 2, ws / 2)) capN++;
     })();
     var MT = capN ? (30 + 12 * (capN - 1) + 38) : 46;
-    VB_H += Math.max(0, MT - 66);
-    var PW = VB_W - ML - MR, PH = VB_H - MT - MB;
     var WL = L.WL, WS = L.WS, apv = L.apv, b = 2 * apv, b5 = 5 * apv;
     var rot = n(S.bldgRot, 0);
     if (!isFinite(rot)) rot = 0;
     rot = ((rot % 360) + 360) % 360;
     if (rot > 359.999) rot = 0;
     var rotated = Math.abs(rot) >= 1e-6 && Math.abs(rot - 360) >= 1e-6;
+    /* v100: the canvas takes the shape of what it draws. Up to v99 every roof
+       was fitted into a fixed landscape 940 x 520, so a rotated or north-south
+       roof was height-bound and drawn at a fraction of the width: an 84 x 48 m
+       roof turned 30 degrees filled 15 % of the figure, turned 90 degrees 13 %.
+       The plot height now follows the roof (or its rotated bounding box), from
+       the old 426 up to 900 units, and the captions add height instead of
+       taking it. The frame still depends only on the roof, its rotation and
+       the caption count, never on where the arrays are, so it stays still
+       while an array is dragged. */
+    var PW = VB_W - ML - MR;
+    var fw = WL, fh = WS, padF = 0;
+    if (rotated) {
+      var thA = rot * Math.PI / 180;
+      fw = Math.abs(WL * Math.cos(thA)) + Math.abs(WS * Math.sin(thA));
+      fh = Math.abs(WL * Math.sin(thA)) + Math.abs(WS * Math.cos(thA));
+      padF = 36;
+    }
+    var PH = Math.min(900, Math.max(426, 2 * padF + (PW - 2 * padF) * fh / Math.max(fw, 1e-6)));
+    VB_H = MT + PH + MB;
     var s, ox, oy, rcx, rcy, x0, y0;
     if (!rotated) {
       s = Math.min(PW / WL, PH / WS);
@@ -5751,9 +5792,16 @@ window.BallastDraw = (function () {
       countsAll[2] += cc[2]; countsAll[3] += cc[3];
     }
     var Lleg = Object.assign({}, L, { counts: countsAll });
-    var leg = mapLegend(VB_W - 166, MT, Lleg, apv, WL, WS);
-    o += leg.svg;
-    o += scaleBar(VB_W - 166, MT + leg.height + 28, s);
+    if (opt.print) {
+      var leg = mapLegend(VB_W - 166, MT, Lleg, apv, WL, WS);
+      o += leg.svg;
+      o += scaleBar(Math.min(VB_W - 166, VB_W - 24 - scaleBarM(s).px), MT + leg.height + 28, s);
+    } else {
+      /* On screen only the scale bar, bottom right under the plot (the bottom
+         margin is 64 here so the W_L dimension stays clear of it); the legend
+         is the list under the plan. */
+      o += scaleBar(VB_W - 24 - scaleBarM(s).px, VB_H - 22, s);
+    }
     return o + '</svg>';
   }
 
@@ -7439,37 +7487,133 @@ aeffOut:
     return { list: list, of: of };
   }
 
-  function heatMap(sc) {
-    var xs = [], ys = [], xe = [], ye = [];
-    sc.recs.forEach(function (r) {
-      xs.push(r.x); ys.push(r.y); xe.push(r.x + r.w); ye.push(r.y + r.h);
+  /* v100: groups of points that sit close together. Two points are in one
+     group when their footprints come within 3 m of each other. */
+  function heatClusters(recs) {
+    var nR = recs.length;
+    if (nR < 2 || nR > 4000) return [recs];
+    var par = recs.map(function (_, i) { return i; });
+    function find(i) { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; }
+    var G = 3;
+    var idx = recs.map(function (_, i) { return i; }).sort(function (a, b) { return recs[a].x - recs[b].x; });
+    for (var a = 0; a < nR; a++) {
+      var ra = recs[idx[a]];
+      for (var b = a + 1; b < nR; b++) {
+        var rb = recs[idx[b]];
+        if (rb.x > ra.x + ra.w + G) break;
+        if (rb.y <= ra.y + ra.h + G && ra.y <= rb.y + rb.h + G) {
+          var pa = find(idx[a]), pb = find(idx[b]);
+          if (pa !== pb) par[pa] = pb;
+        }
+      }
+    }
+    var byRoot = {};
+    recs.forEach(function (r, i) { var k = find(i); (byRoot[k] = byRoot[k] || []).push(r); });
+    var out = Object.keys(byRoot).map(function (k) { return byRoot[k]; });
+    function mins(g) {
+      return g.reduce(function (m, r) { return [Math.min(m[0], r.y), Math.min(m[1], r.x)]; }, [Infinity, Infinity]);
+    }
+    return out.sort(function (p, q) { var mp = mins(p), mq = mins(q); return (mp[0] - mq[0]) || (mp[1] - mq[1]); });
+  }
+  function heatFitScale(recs, hmax) {
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    recs.forEach(function (r) {
+      x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y);
+      x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h);
     });
+    var W = x1 - x0 + 1.2, H = y1 - y0 + 1.2;
+    return (W > 0 && H > 0) ? Math.min(620 / W, hmax / H) : 0;
+  }
+  /* v100: the map is drawn as one or more panels, each at its own scale.
+     - A multi-roof site sweep gets one panel per roof. The points of each roof
+       are in that roof's own frame; up to v99 they were drawn in one frame, so
+       the roofs lay on top of each other.
+     - Within a roof, arrays far enough apart that one frame would shrink
+       every panel (two wings of an H, say) get one panel per group, if that
+       at least makes every panel 1.5 times larger.
+     - A stepped roof stays one panel, so the block footprint stays in place. */
+  function heatGroups(sc) {
+    if (sc.byRoof) return [{ recs: sc.recs, title: "" }];
+    var roofs = [];
+    if (sc.roofSet && sc.roofSet.length > 1)
+      sc.roofSet.forEach(function (b) { if (b.recs && b.recs.length) roofs.push({ recs: b.recs, name: b.name }); });
+    else roofs.push({ recs: sc.recs, name: "" });
+    var multiRoof = roofs.length > 1, out = [];
+    roofs.forEach(function (rf) {
+      var cl = heatClusters(rf.recs);
+      var split = cl.length > 1 && cl.length <= 8 &&
+        Math.min.apply(null, cl.map(function (g) { return heatFitScale(g, 480); })) >=
+          1.5 * heatFitScale(rf.recs, 620);
+      if (split) cl.forEach(function (g, k) {
+        out.push({ recs: g, title: (rf.name ? rf.name + " \u00b7 " : "") + "group " + (k + 1) +
+          " of " + cl.length + " (" + g.length + " point" + (g.length === 1 ? "" : "s") + ")" });
+      });
+      else out.push({ recs: rf.recs, title: multiRoof ? rf.name + " (" + rf.recs.length + " points)" : "" });
+    });
+    return out;
+  }
+  function heatMap(sc, opt) {
+    opt = opt || {};
     var stepped = !!sc.byRoof;
     var bx, by, bw, bd;
     if (stepped) {
       bx = pnum(S.upX, 0); by = pnum(S.upY, 0);
       bw = pnum(S.upW, 0); bd = pnum(S.upD, 0);
-      xs.push(bx); ys.push(by); xe.push(bx + bw); ye.push(by + bd);
     }
-    var x0 = Math.min.apply(null, xs), y0 = Math.min.apply(null, ys);
-    var x1 = Math.max.apply(null, xe), y1 = Math.max.apply(null, ye);
-    var pad = 0.6, W = (x1 - x0) + 2 * pad, H = (y1 - y0) + 2 * pad;
-    if (!(W > 0) || !(H > 0)) return "";
-    var VB = 620, sc2 = VB / W, hh = H * sc2;
-    var footBase = stepped ? 68 : 46;
+    var groups = heatGroups(sc), multi = groups.length > 1;
+    /* height cap: a long north-south roof no longer runs to several screens */
+    var VB = 620, pad = 0.6, HMAX = multi ? 480 : 620, TITLE = multi ? 18 : 0, GAP = multi ? 12 : 0;
+    /* In the report the stack must fit the 176 x 200 mm picture (about 700
+       units tall) or every panel is printed small, so the panels share that
+       height. A single roof that this would leave smaller than one frame is
+       printed as one frame instead. */
+    if (opt.print && multi) {
+      var budget = 700 - 74 - groups.length * (TITLE + GAP) + GAP;
+      HMAX = Math.max(140, budget / groups.length);
+      if (!(sc.roofSet && sc.roofSet.length > 1)) {
+        var oneS = heatFitScale(sc.recs, 620);
+        var minS = Math.min.apply(null, groups.map(function (g) { return heatFitScale(g.recs, HMAX); }));
+        if (minS < oneS * 1.15) { groups = [{ recs: sc.recs, title: "" }]; multi = false; HMAX = 620; TITLE = 0; GAP = 0; }
+      }
+    }
+    var panels = [], yAcc = 0;
+    groups.forEach(function (gp) {
+      var xs = [], ys = [], xe = [], ye = [];
+      gp.recs.forEach(function (r) { xs.push(r.x); ys.push(r.y); xe.push(r.x + r.w); ye.push(r.y + r.h); });
+      if (stepped) { xs.push(bx); ys.push(by); xe.push(bx + bw); ye.push(by + bd); }
+      if (!xs.length) return;
+      var gx0 = Math.min.apply(null, xs), gy0 = Math.min.apply(null, ys);
+      var W = Math.max.apply(null, xe) - gx0 + 2 * pad, H = Math.max.apply(null, ye) - gy0 + 2 * pad;
+      if (!(W > 0) || !(H > 0)) return;
+      var s2 = Math.min(VB / W, HMAX / H);
+      panels.push({ gp: gp, x0: gx0, y0: gy0, s2: s2, offX: (VB - W * s2) / 2, offY: yAcc + TITLE });
+      yAcc += TITLE + H * s2 + GAP;
+    });
+    if (!panels.length) return "";
+    var hh = yAcc - GAP;
+    /* the north / axes caption has its own footer line (v100) */
+    var footBase = stepped ? 82 : 58;
     var hasAnchors = sc.recs.some(function (r) { return r.anchor; });
     var footer = footBase + (hasAnchors ? 16 : 0);
 
     var key = heatKey(sc);
     if (!key.list.length && !sc.anchorAll) return "";
-    function px(v) { return ((v - x0 + pad) * sc2).toFixed(1); }
-    function py(v) { return ((v - y0 + pad) * sc2).toFixed(1); }
+    var sc2 = 1, x0 = 0, y0 = 0, offX = 0, offY = 0;   /* the panel being drawn */
+    function px(v) { return (offX + (v - x0 + pad) * sc2).toFixed(1); }
+    function py(v) { return (offY + (v - y0 + pad) * sc2).toFixed(1); }
 
     var o = '<svg class="heat" viewBox="0 0 ' + VB.toFixed(0) + " " +
       (hh + footer).toFixed(0) +
       '" role="img" aria-label="Roof plan with every ballast point labelled and coloured by ' +
       'the tier mass to place there. Green is the lightest tier on the job, red the heaviest.">';
 
+    var labels = "", marks = "", unlabeled = 0;
+    panels.forEach(function (P) {
+    sc2 = P.s2; x0 = P.x0; y0 = P.y0; offX = P.offX; offY = P.offY;
+    if (multi && P.gp.title)
+      o += '<text x="0" y="' + (offY - 6).toFixed(1) + '" font-size="10.5" font-weight="700" fill="#132229">' +
+        String(P.gp.title).replace(/&/g, "&amp;").replace(/</g, "&lt;") +
+        '<tspan font-weight="400" fill="#4A5F68">  \u00b7  own scale</tspan></text>';
     /* The block footprint, so it is obvious which points are on the upper plane. */
     if (stepped && bw > 0 && bd > 0) {
       o += '<rect x="' + px(bx) + '" y="' + py(by) + '" width="' + (bw * sc2).toFixed(1) +
@@ -7479,8 +7623,7 @@ aeffOut:
         ' m above the lower roof</title></rect>';
     }
 
-    var labels = "", marks = "", unlabeled = 0;
-    sc.recs.forEach(function (r) {
+    P.gp.recs.forEach(function (r) {
       var up = r.roof === "upper";
       var tk = sc.anchorAll ? null : key.of(r.kg);
       var an = r.anchor;
@@ -7560,8 +7703,9 @@ aeffOut:
         else unlabeled++;
       }
     });
+    });
     o += labels + marks;
-    sc._unlabeled = unlabeled;
+    if (!opt.print) sc._unlabeled = unlabeled;   /* the screen count; the report call must not overwrite it */
 
     /* Colour key: one swatch per tier (or per colour band with exact values),
        lightest first, each labelled with the mass it stands for. */
@@ -7583,13 +7727,14 @@ aeffOut:
       var ay0 = hh + footBase + 6, aN = sc.recs.filter(function (r) { return r.anchor; });
       o += '<circle cx="4" cy="' + ay0.toFixed(1) + '" r="3" fill="#132229" stroke="#FFFFFF" stroke-width=".6"/>' +
         '<text x="12" y="' + (ay0 + 3.3).toFixed(1) + '" font-size="9.5" fill="#4A5F68">' +
-        "chemical anchor on a rail \u00b7 " + aN[0].anchor.n + " per anchored unit, " +
-        aN[0].anchor.perRail + " on each of the two rails across the long side \u00b7 " + aN.length +
-        " unit" + (aN.length === 1 ? "" : "s") + " anchored \u00b7 set out at the rail feet</text>";
+        "chemical anchor \u00b7 " + aN[0].anchor.n + " per unit, " + aN[0].anchor.perRail +
+        " on each rail \u00b7 " + aN.length + " unit" + (aN.length === 1 ? "" : "s") +
+        " anchored \u00b7 set out at the rail feet</text>";
     }
-    o += '<text x="' + VB + '" y="' + (by0 - 3).toFixed(1) +
-      '" font-size="9.5" fill="#4A5F68" text-anchor="end">north is up \u00b7 ' + sc.n +
-      " points</text>";
+    o += '<text x="' + VB + '" y="' + (by0 + bh0 + 26).toFixed(1) +
+      '" font-size="9.5" fill="#4A5F68" text-anchor="end">' +
+      (Math.abs(((pnum(S.bldgRot, 0) % 360) + 360) % 360) > 1e-6 ? "building axes, rotation not shown"
+        : "north is up") + ' \u00b7 ' + sc.n + " points</text>";
 
     /* Each plane's own range, so a roof that is uniformly red is still readable. */
     if (stepped) {
@@ -7599,12 +7744,11 @@ aeffOut:
         return b.label + " " + f0(Math.min.apply(null, ks)) + "\u2013" +
           f0(Math.max.apply(null, ks)) + " kg (" + b.n + ")";
       }).join("   \u00b7   ");
-      o += '<text x="0" y="' + (hh + 48).toFixed(1) +
-        '" font-size="10.5" fill="#4A5F68">' + line +
-        "   \u00b7   scale spans both planes, so red is the heaviest point on the building</text>";
-      o += '<text x="0" y="' + (hh + 61).toFixed(1) +
-        '" font-size="10.5" fill="#4A5F68">heavy outline = on the upper block' +
-        "   \u00b7   dashed rectangle = block footprint</text>";
+      o += '<text x="0" y="' + (hh + 62).toFixed(1) +
+        '" font-size="10.5" fill="#4A5F68">' + line + "</text>";
+      o += '<text x="0" y="' + (hh + 75).toFixed(1) +
+        '" font-size="10.5" fill="#4A5F68">one colour scale for both planes \u00b7 heavy outline = upper block' +
+        " \u00b7 dashed = block footprint</text>";
     }
     o += "</svg>";
     return o;
@@ -8454,10 +8598,10 @@ aeffOut:
       var fz = 0;
       /* The zone map now carries the panels, so a separate layout figure would
          only repeat it. Two figures keep the summary short. */
-      if (imgs && imgs.zone) { fz++; pic(imgs.zone, 172, 116, "Figure " + fz +
+      if (imgs && imgs.zone) { fz++; pic(imgs.zone, 172, 190, "Figure " + fz +
         "    Roof wind zones and panel layout \u2014 each part of the roof coloured by its wind " +
         "zone, the zone distances measured from the roof edges, and every panel in place."); }
-      if (imgs && imgs.heat && issued) { fz++; pic(imgs.heat, 176, 130, "Figure " + fz +
+      if (imgs && imgs.heat && issued) { fz++; pic(imgs.heat, 176, 200, "Figure " + fz +
         "    Ballast placement — the mass required at every point, green lightest to red " +
         "heaviest."); }
 
@@ -10460,7 +10604,7 @@ aeffOut:
       var fig = 0, blocks = { zone: [], unit: [], sched: [] };
 
       /* Section 1 — Figure: the roof itself, coloured by wind zone */
-      var zm = zoneImg ? doc.picture(zoneImg, 170, 112) : null;
+      var zm = zoneImg ? doc.picture(zoneImg, 170, 190) : null;
       if (zm) {
         fig++;
         blocks.zone.push(cap("Figure " + fig + "    Roof wind zones and panel layout \u2014 the roof " +
@@ -10471,7 +10615,7 @@ aeffOut:
         blocks.zone.push(K.para(zm, { align: "center", spaceAfter: 10 }));
       }
       /* Section 1 — Figure: the panels, coloured by the zone they sit in */
-      var zp = planImg ? doc.picture(planImg, 176, 118) : null;
+      var zp = planImg ? doc.picture(planImg, 176, 190) : null;
       if (zp) {
         fig++;
         var zoneFig = fig;
@@ -10484,7 +10628,7 @@ aeffOut:
           "result for a small plan on a tall building, not a drawing fault."));
       }
       /* Section 1 — Figure: ballast placement */
-      var hp = heatImg ? doc.picture(heatImg, 176, 130) : null;
+      var hp = heatImg ? doc.picture(heatImg, 176, 200) : null;
       var heatFig = null;
       if (hp) {
         fig++;
@@ -10582,7 +10726,7 @@ aeffOut:
     function rasterOne(kind) {
       try {
         if (!window.BallastDraw || !window.BallastDraw[kind]) return Promise.resolve(null);
-        return rasterizeSvg(window.BallastDraw[kind](S, r));
+        return rasterizeSvg(window.BallastDraw[kind](S, r, { print: true }));
       } catch (e) { return Promise.resolve(null); }
     }
 
@@ -10593,7 +10737,7 @@ aeffOut:
       try {
         if (!SCHED || !SCHED.recs || !SCHED.recs.length)
           return Promise.resolve(null);
-        var svg = heatMap(SCHED);
+        var svg = heatMap(SCHED, { print: true });
         if (!svg) return Promise.resolve(null);
         return rasterizeSvg(svg);
       } catch (e) { return Promise.resolve(null); }
@@ -12210,6 +12354,7 @@ aeffOut:
       }
       el("figSection").innerHTML = window.BallastDraw.section(S, r);
       el("figPlan").innerHTML = window.BallastDraw.plan(S, r);
+      applyPlanZoom();
       var lg = el("planLeg");
       if (lg && window.BallastDraw.layoutArray) {
         var packs = window.BallastDraw.layoutAll
@@ -14209,25 +14354,53 @@ aeffOut:
     var PG = function () { return window.BallastDraw && window.BallastDraw.poly; };
     var VBW = 640, VBH = 440, PAD = 34;
     var ed = { pts: [], closed: false, hover: null, raw: null, hl: -1 };
-    var view = { sc: 10, extX: 60, extY: 40 };
+    /* v100: the view is a scale and an origin. The shape is fitted on both
+       axes and centred, and the canvas height follows the shape, so a deep or
+       tall roof gets a deep canvas instead of a strip. Up to v99 only the
+       width was fitted, from the top-left corner, at most about 726 px wide. */
+    var view = { sc: 10, ox: 0, oy: 0 };
     function gridStep() { return Math.max(0.05, pnum(el("olGrid").value, 1)); }
-    function setView() {
-      var ext = Math.max(5, pnum(el("olExt").value, 60));
-      view.sc = (VBW - 2 * PAD) / ext;
-      view.extX = ext;
-      view.extY = (VBH - 2 * PAD) / view.sc;
+    function innerW() { return VBW - 2 * PAD; }
+    function innerH() { return VBH - 2 * PAD; }
+    function setVBH(hh) {
+      VBH = Math.round(hh);
+      svg.setAttribute("viewBox", "0 0 " + VBW + " " + VBH);
+      /* keep the element the drawing's own shape, so a short screen shrinks
+         it evenly instead of letterboxing it inside a full-width white box */
+      svg.style.maxWidth = "calc(max(320px, 100vh - 240px) * " + (VBW / VBH).toFixed(4) + ")";
     }
-    function fitExtent(P) {
-      var ext = 60;
-      if (P && P.length) {
-        var bb = PG().bbox(P);
-        ext = Math.max(bb.maxX * 1.15 + 2, (bb.maxY * 1.15 + 2) * (VBW - 2 * PAD) / (VBH - 2 * PAD), 20);
-      }
-      el("olExt").value = Math.ceil(ext / 5) * 5;
-      setView();
+    function showExt(force) {
+      var nn = el("olExt");
+      if (nn && (force || document.activeElement !== nn)) nn.value = Math.round(innerW() / view.sc * 10) / 10;
     }
-    function SX(x) { return PAD + x * view.sc; }
-    function SY(y) { return PAD + y * view.sc; }
+    function fitTo(P) {
+      var bb = (P && P.length) ? PG().bbox(P) : { minX: 0, minY: 0, maxX: 60, maxY: 40 };
+      var bw = Math.max(bb.maxX - bb.minX, 5), bh = Math.max(bb.maxY - bb.minY, 5);
+      var mw = bw * 1.08 + 2, mh = bh * 1.08 + 2;
+      setVBH(Math.min(900, Math.max(300, 2 * PAD + innerW() * mh / mw)));
+      view.sc = Math.min(innerW() / mw, innerH() / mh);
+      view.ox = bb.minX - (innerW() / view.sc - bw) / 2;
+      view.oy = bb.minY - (innerH() / view.sc - bh) / 2;
+      showExt();
+    }
+    function fitExtent(P) { fitTo(P); }
+    /* zoom by f, keeping the world point (wx, wy) where it is on screen */
+    function zoomAt(f, wx, wy) {
+      var sc1 = Math.min(400, Math.max(0.05, view.sc * f));
+      if (wx == null) { wx = view.ox + innerW() / view.sc / 2; wy = view.oy + innerH() / view.sc / 2; }
+      view.ox = wx - (wx - view.ox) * view.sc / sc1;
+      view.oy = wy - (wy - view.oy) * view.sc / sc1;
+      view.sc = sc1;
+      showExt();
+    }
+    function inView(P) {
+      if (!P || !P.length) return true;
+      var bb = PG().bbox(P);
+      return bb.minX >= view.ox && bb.minY >= view.oy &&
+        bb.maxX <= view.ox + innerW() / view.sc && bb.maxY <= view.oy + innerH() / view.sc;
+    }
+    function SX(x) { return PAD + (x - view.ox) * view.sc; }
+    function SY(y) { return PAD + (y - view.oy) * view.sc; }
     function r3(v) { return Math.round(v * 1000) / 1000; }
     function snap(v) { var g = gridStep(); return r3(Math.round(v / g) * g); }
     function toWorld(ev) {
@@ -14236,7 +14409,7 @@ aeffOut:
       var m = svg.getScreenCTM();
       if (!m) return null;
       var q = pt.matrixTransform(m.inverse());
-      return [(q.x - PAD) / view.sc, (q.y - PAD) / view.sc];
+      return [(q.x - PAD) / view.sc + view.ox, (q.y - PAD) / view.sc + view.oy];
     }
     function dirOf(a, b) {
       return Math.abs(a[1] - b[1]) < 1e-9 ? (b[0] > a[0] ? "E" : "W") : (b[1] > a[1] ? "S" : "N");
@@ -14275,6 +14448,7 @@ aeffOut:
       var err = PG().check(P);
       if (err) { status("Cannot close: " + err + ".", true); return false; }
       ed.pts = P; ed.closed = true;
+      fitTo(P);
       status("Closed. Edit any length in the table; the last two edges follow so the outline still closes.");
       draw(); table();
       return true;
@@ -14306,27 +14480,32 @@ aeffOut:
       return q;
     }
     function draw() {
-      setView();
       var g = gridStep(), o = "";
-      var major = g >= 1 ? (view.extX > 120 ? 20 : view.extX > 60 ? 10 : 5) : (g >= 0.25 ? 5 : 1);
+      var visW = innerW() / view.sc, visH = innerH() / view.sc;
+      /* labelled lines at least about 45 units apart, whatever the zoom */
+      var major = [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500].filter(function (m) {
+        return m >= g && m * view.sc >= 45;
+      })[0] || 500;
       var minorOn = g * view.sc >= 5;
       var x, y, k;
+      function lbl(v) { return String(Math.round(v * 100) / 100); }
       o += '<rect x="0" y="0" width="' + VBW + '" height="' + VBH + '" fill="#fff"/>';
       if (minorOn) {
-        for (x = 0; x <= view.extX + 1e-9; x += g)
+        for (x = Math.ceil(view.ox / g) * g; x <= view.ox + visW + 1e-9; x += g)
           o += '<line x1="' + SX(x).toFixed(1) + '" y1="' + PAD + '" x2="' + SX(x).toFixed(1) + '" y2="' + (VBH - PAD) + '" stroke="#EEF2F4" stroke-width=".6"/>';
-        for (y = 0; y <= view.extY + 1e-9; y += g)
+        for (y = Math.ceil(view.oy / g) * g; y <= view.oy + visH + 1e-9; y += g)
           o += '<line x1="' + PAD + '" y1="' + SY(y).toFixed(1) + '" x2="' + (VBW - PAD) + '" y2="' + SY(y).toFixed(1) + '" stroke="#EEF2F4" stroke-width=".6"/>';
       }
-      for (x = 0; x <= view.extX + 1e-9; x += major) {
+      for (x = Math.ceil(view.ox / major) * major; x <= view.ox + visW + 1e-9; x += major) {
         o += '<line x1="' + SX(x).toFixed(1) + '" y1="' + PAD + '" x2="' + SX(x).toFixed(1) + '" y2="' + (VBH - PAD) + '" stroke="#D3DCE0" stroke-width=".8"/>';
-        o += '<text x="' + SX(x).toFixed(1) + '" y="' + (PAD - 8) + '" font-size="9" fill="#4A5F68" text-anchor="middle">' + x + '</text>';
+        o += '<text x="' + SX(x).toFixed(1) + '" y="' + (PAD - 8) + '" font-size="9" fill="#4A5F68" text-anchor="middle">' + lbl(x) + '</text>';
       }
-      for (y = 0; y <= view.extY + 1e-9; y += major) {
+      for (y = Math.ceil(view.oy / major) * major; y <= view.oy + visH + 1e-9; y += major) {
         o += '<line x1="' + PAD + '" y1="' + SY(y).toFixed(1) + '" x2="' + (VBW - PAD) + '" y2="' + SY(y).toFixed(1) + '" stroke="#D3DCE0" stroke-width=".8"/>';
-        o += '<text x="' + (PAD - 6) + '" y="' + (SY(y) + 3).toFixed(1) + '" font-size="9" fill="#4A5F68" text-anchor="end">' + y + '</text>';
+        o += '<text x="' + (PAD - 6) + '" y="' + (SY(y) + 3).toFixed(1) + '" font-size="9" fill="#4A5F68" text-anchor="end">' + lbl(y) + '</text>';
       }
-      o += '<text x="' + (VBW - PAD) + '" y="' + (PAD - 8) + '" font-size="9" fill="#4A5F68" text-anchor="end">N ↑ · metres</text>';
+      o += '<text x="' + (VBW - PAD) + '" y="' + (PAD - 8) + '" font-size="9" fill="#4A5F68" text-anchor="end">N \u2191 \u00b7 metres</text>';
+      o += '<text x="' + (VBW - PAD) + '" y="' + (VBH - 10) + '" font-size="9" fill="#4A5F68" text-anchor="end">wheel to zoom \u00b7 Shift-drag or middle-drag to pan</text>';
       var P = ed.pts;
       if (P.length) {
         var d = "M" + P.map(function (q) { return SX(q[0]).toFixed(1) + "," + SY(q[1]).toFixed(1); }).join("L");
@@ -14392,6 +14571,7 @@ aeffOut:
       var err = ok ? PG().check(Q) : "the last two edges cannot close it that way";
       if (err) { status("Edge " + (k + 1) + " = " + f(L, 3) + " m does not work: " + err + ".", true); return false; }
       ed.pts = Q;
+      if (!inView(Q)) fitTo(Q);
       status("Edge " + (k + 1) + " set to " + f(L, 3) + " m.");
       return true;
     }
@@ -14423,7 +14603,50 @@ aeffOut:
     };
     el("olClose").onclick = function () { if (!ed.closed) closeShape(); };
     el("olGrid").onchange = function () { draw(); };
-    el("olExt").onchange = function () { draw(); };
+    el("olExt").onchange = function () {
+      var want = Math.max(2, pnum(el("olExt").value, innerW() / view.sc));
+      zoomAt((innerW() / view.sc) / want);
+      showExt(true);
+      draw();
+    };
+    el("olExt").addEventListener("blur", function () { showExt(true); });
+    var fb = el("olFit");
+    if (fb) fb.onclick = function () {
+      fitTo(ed.pts.length ? ed.pts : rectPoly()); draw();
+    };
+    svg.addEventListener("wheel", function (ev) {
+      if (!ev.deltaY) return;            /* a sideways scroll is not a zoom */
+      ev.preventDefault();
+      var w = toWorld(ev);
+      zoomAt(wheelZoomFactor(ev, 0.0018), w ? w[0] : null, w ? w[1] : null);
+      if (!ed.closed && w) ed.hover = hoverPoint(w);
+      draw();
+    }, { passive: false });
+    /* pan: Shift + drag, or drag with the middle button. The click that ends
+       a pan must not add a corner. */
+    var panO = null, panMoved = false;
+    svg.addEventListener("mousedown", function (ev) {
+      if (!(ev.button === 1 || (ev.button === 0 && ev.shiftKey))) {
+        if (ev.button === 0) panMoved = false;   /* a plain click always counts */
+        return;
+      }
+      ev.preventDefault();
+      panO = { x: ev.clientX, y: ev.clientY, ox: view.ox, oy: view.oy };
+      panMoved = false;
+    });
+    window.addEventListener("mousemove", function (ev) {
+      if (!panO) return;
+      var m = svg.getScreenCTM(), k = m ? (m.a || 1) : 1;
+      var dx = ev.clientX - panO.x, dy = ev.clientY - panO.y;
+      if (Math.abs(dx) + Math.abs(dy) > 3) panMoved = true;
+      view.ox = panO.ox - dx / k / view.sc;
+      view.oy = panO.oy - dy / k / view.sc;
+      draw();
+    });
+    window.addEventListener("mouseup", function () {
+      if (panO) { panO = null; setTimeout(function () { panMoved = false; }, 0); }
+    });
+    svg.addEventListener("auxclick", function () { panMoved = false; });
     el("olApply").onclick = function () {
       if (!ed.closed) { if (!closeShape()) return; }
       var P = tidy(ed.pts);
@@ -14448,6 +14671,7 @@ aeffOut:
     });
     svg.addEventListener("mouseleave", function () { ed.hover = null; if (!ed.closed) draw(); });
     svg.addEventListener("click", function (ev) {
+      if (panMoved || ev.shiftKey) { panMoved = false; return; }
       if (ed.closed) { status("The outline is closed. Undo corner reopens it; Clear starts again.", false); return; }
       var w = toWorld(ev); if (!w) return;
       var q = hoverPoint(w), P = ed.pts;
@@ -14631,17 +14855,126 @@ aeffOut:
     toast("New project — name it, then work down the panels");
   };
   el("printBtn").onclick = function () { window.print(); };
+  /* ---- roof plan zoom (v100) ---------------------------------------------
+     The plan is redrawn on every change, so the zoom lives here and is put
+     back on the new SVG after each render. It is a viewBox window onto the
+     drawing: the drawing, its data-* frame attributes and the report figure
+     are untouched, and the pointer mapping below reads the live viewBox. */
+  var PZ = { z: 1, cx: null, cy: null, roof: null, bw: null, bh: null };
+  /* wheel delta to a zoom factor: one mouse notch (about 100 px) is about
+     1.4x; a trackpad pinch sends many small deltas, which add up smoothly */
+  function wheelZoomFactor(ev, k) {
+    var d = ev.deltaY * (ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 800 : 1);
+    return Math.exp(-Math.max(-100, Math.min(100, d)) * (k || 0.0035));
+  }
+  function planBaseVB(svg) {
+    var b = svg.getAttribute("data-vb0");
+    if (!b) { b = svg.getAttribute("viewBox") || "0 0 940 520"; svg.setAttribute("data-vb0", b); }
+    var q = b.split(/[\s,]+/).map(Number);
+    return { w: q[2] || 940, h: q[3] || 520 };
+  }
+  function applyPlanZoom() {
+    var host = el("figPlan"), svg = host && host.querySelector("svg");
+    if (!svg) return;
+    var B = planBaseVB(svg);
+    /* a different roof starts at the whole roof; the same roof with a new
+       frame size (rotation, captions) keeps the zoom, rescaled */
+    var roofNow = pnum(S.roofI, 0);
+    if (PZ.roof !== null && PZ.roof !== roofNow) { PZ.z = 1; PZ.cx = null; PZ.cy = null; }
+    else if (PZ.cx != null && PZ.bw && PZ.bh && (PZ.bw !== B.w || PZ.bh !== B.h)) {
+      PZ.cx *= B.w / PZ.bw; PZ.cy *= B.h / PZ.bh;
+    }
+    PZ.roof = roofNow; PZ.bw = B.w; PZ.bh = B.h;
+    if (!(PZ.z > 1.001)) {
+      PZ.z = 1; PZ.cx = null; PZ.cy = null;
+      svg.setAttribute("viewBox", "0 0 " + B.w + " " + B.h);
+    } else {
+      var w = B.w / PZ.z, h = B.h / PZ.z;
+      if (PZ.cx == null) { PZ.cx = B.w / 2; PZ.cy = B.h / 2; }
+      PZ.cx = Math.min(Math.max(PZ.cx, w / 2), B.w - w / 2);
+      PZ.cy = Math.min(Math.max(PZ.cy, h / 2), B.h - h / 2);
+      svg.setAttribute("viewBox", (PZ.cx - w / 2).toFixed(2) + " " + (PZ.cy - h / 2).toFixed(2) +
+        " " + w.toFixed(2) + " " + h.toFixed(2));
+    }
+    var out = el("planZoomOut");
+    if (out) out.textContent = Math.round(PZ.z * 100) + "%";
+  }
+  function planToUser(svg, cx, cy) {
+    var m = svg.getScreenCTM();
+    if (!m) return null;
+    var pt = svg.createSVGPoint();
+    pt.x = cx; pt.y = cy;
+    var q = pt.matrixTransform(m.inverse());
+    return { x: q.x, y: q.y };
+  }
+  function zoomPlanAt(f, clientX, clientY) {
+    var svg = el("figPlan") && el("figPlan").querySelector("svg");
+    if (!svg) return;
+    var B = planBaseVB(svg);
+    var z0 = PZ.z, z1 = Math.min(16, Math.max(1, z0 * f));
+    if (Math.abs(z1 - z0) < 1e-6) return;
+    var cx0 = PZ.cx == null ? B.w / 2 : PZ.cx, cy0 = PZ.cy == null ? B.h / 2 : PZ.cy;
+    var at = (clientX != null) ? planToUser(svg, clientX, clientY) : null;
+    if (at) {
+      /* keep the point under the cursor where it is */
+      PZ.cx = at.x - (at.x - cx0) * z0 / z1;
+      PZ.cy = at.y - (at.y - cy0) * z0 / z1;
+    } else { PZ.cx = cx0; PZ.cy = cy0; }
+    PZ.z = z1;
+    applyPlanZoom();
+  }
+  function zoomPlanToPanels() {
+    var svg = el("figPlan") && el("figPlan").querySelector("svg");
+    if (!svg) return;
+    PZ.z = 1; applyPlanZoom();
+    var arr = svg.querySelectorAll("rect.array");
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    Array.prototype.forEach.call(arr, function (a) {
+      var bx = a.getBoundingClientRect();
+      if (!(bx.width > 0)) return;
+      [[bx.left, bx.top], [bx.right, bx.bottom]].forEach(function (c) {
+        var q = planToUser(svg, c[0], c[1]);
+        if (!q) return;
+        x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y);
+      });
+    });
+    if (!(x1 > x0)) { toast("No panels on this roof to zoom to"); return; }
+    var B = planBaseVB(svg);
+    var w = (x1 - x0) * 1.12 + 24, h = (y1 - y0) * 1.12 + 24;
+    PZ.z = Math.min(16, Math.max(1, Math.min(B.w / w, B.h / h)));
+    PZ.cx = (x0 + x1) / 2; PZ.cy = (y0 + y1) / 2;
+    applyPlanZoom();
+  }
+  (function bindPlanZoom() {
+    var bar = el("planZoom"), host = el("figPlan");
+    if (bar) bar.addEventListener("click", function (ev) {
+      var t = ev.target && ev.target.closest ? ev.target.closest("button[data-z]") : null;
+      if (!t) return;
+      var k = t.getAttribute("data-z");
+      if (k === "in") zoomPlanAt(1.4);
+      else if (k === "out") zoomPlanAt(1 / 1.4);
+      else if (k === "fit") { PZ.z = 1; applyPlanZoom(); }
+      else if (k === "arrays") zoomPlanToPanels();
+    });
+    /* Ctrl/Cmd + wheel, which is also what a trackpad pinch sends. A plain
+       wheel still scrolls the page. */
+    if (host) host.addEventListener("wheel", function (ev) {
+      if (!(ev.ctrlKey || ev.metaKey)) return;
+      ev.preventDefault();
+      zoomPlanAt(wheelZoomFactor(ev), ev.clientX, ev.clientY);
+    }, { passive: false });
+  })();
   (function bindPlanDrag() {
     var host = el("figPlan");
     if (!host) return;
-    var drag = null;
+    var drag = null, pan = null, pinch = null, touches = {};
+    function touchList() { return Object.keys(touches).map(function (k) { return touches[k]; }); }
+    /* v100: pointer to SVG user units through the live screen matrix. Up to
+       v99 this assumed a 940 x 500 viewBox, but the plan is 520 units or more
+       tall, so a vertical drag moved the array about 4 % further than the
+       pointer; with zoom and a shape-following canvas it would be far off. */
     function svgXY(svg, ev) {
-      var box = svg.getBoundingClientRect();
-      var vbW = 940, vbH = 500;
-      return {
-        x: (ev.clientX - box.left) / Math.max(box.width, 1) * vbW,
-        y: (ev.clientY - box.top) / Math.max(box.height, 1) * vbH
-      };
+      return planToUser(svg, ev.clientX, ev.clientY) || { x: 0, y: 0 };
     }
     function planMetres(svg, pt) {
       var sc = parseFloat(svg.getAttribute("data-s")) || 1;
@@ -14683,6 +15016,21 @@ aeffOut:
       var t = ev.target;
       var svg = host.querySelector("svg");
       if (!svg) return;
+      /* v100: two fingers zoom. The second touch cancels any drag or pan the
+         first one started, so nothing is moved or picked by the gesture. */
+      if (ev.pointerType === "touch") {
+        touches[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+        var tl = touchList();
+        if (tl.length === 2) {
+          drag = null; pan = null;
+          host.classList.remove("dragging"); host.classList.remove("panning");
+          pinch = { d0: Math.max(10, Math.hypot(tl[0].x - tl[1].x, tl[0].y - tl[1].y)), z0: PZ.z };
+          try { host.setPointerCapture(ev.pointerId); } catch (ig4) {}
+          ev.preventDefault();
+          return;
+        }
+      }
+      if (pinch || pan || drag) return;   /* one gesture at a time */
       /* Stepped-roof block: move by its body, resize by the SE grip. */
       var onBlk = t && t.getAttribute && t.getAttribute("data-block") === "1";
       var onGrip = t && t.getAttribute && t.getAttribute("data-blockgrip") === "1";
@@ -14701,7 +15049,18 @@ aeffOut:
       }
       var onMod = t && t.getAttribute && t.getAttribute("data-pick") === "1";
       var onArr = t && t.classList && t.classList.contains("array");
-      if (!onMod && !onArr) return;
+      if (!onMod && !onArr) {
+        /* empty roof: pan when zoomed in */
+        if (PZ.z > 1.001) {
+          var B0 = planBaseVB(svg);
+          pan = { id: ev.pointerId, x: ev.clientX, y: ev.clientY,
+                  cx: PZ.cx == null ? B0.w / 2 : PZ.cx, cy: PZ.cy == null ? B0.h / 2 : PZ.cy };
+          host.classList.add("panning");
+          try { host.setPointerCapture(ev.pointerId); } catch (ig2) {}
+          ev.preventDefault();
+        }
+        return;
+      }
       ensureArrays();
       var ai = parseInt(t.getAttribute("data-ai"), 10);
       if (!isFinite(ai) || ai < 0 || ai >= S.arrays.length) ai = S.arrayI;
@@ -14730,6 +15089,25 @@ aeffOut:
       ev.preventDefault();
     });
     host.addEventListener("pointermove", function (ev) {
+      if (touches[ev.pointerId]) touches[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+      if (pinch) {
+        var tp = touchList();
+        if (tp.length >= 2) {
+          var d1 = Math.hypot(tp[0].x - tp[1].x, tp[0].y - tp[1].y);
+          var want = Math.min(16, Math.max(1, pinch.z0 * d1 / pinch.d0));
+          zoomPlanAt(want / PZ.z, (tp[0].x + tp[1].x) / 2, (tp[0].y + tp[1].y) / 2);
+        }
+        return;
+      }
+      if (pan && ev.pointerId !== pan.id) return;
+      if (pan) {
+        var svgP = host.querySelector("svg"), mP = svgP && svgP.getScreenCTM();
+        var k = mP ? (mP.a || 1) : 1;
+        PZ.cx = pan.cx - (ev.clientX - pan.x) / k;
+        PZ.cy = pan.cy - (ev.clientY - pan.y) / k;
+        applyPlanZoom();
+        return;
+      }
       if (!drag) return;
       var dist = Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0);
       if (!drag.moved && dist < 7) return;
@@ -14779,6 +15157,19 @@ aeffOut:
       render();
     });
     function endDrag(ev) {
+      if (touches[ev.pointerId]) delete touches[ev.pointerId];
+      if (pinch) {
+        if (touchList().length < 2) pinch = null;
+        try { host.releasePointerCapture(ev.pointerId); } catch (ig5) {}
+        return;
+      }
+      if (pan && ev.pointerId !== pan.id) return;
+      if (pan) {
+        pan = null;
+        host.classList.remove("panning");
+        try { host.releasePointerCapture(ev.pointerId); } catch (ig3) {}
+        return;
+      }
       if (!drag) return;
       var d = drag; drag = null;
       host.classList.remove("dragging");
