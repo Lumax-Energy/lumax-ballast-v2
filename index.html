@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="format-detection" content="telephone=no"/>
-<title>Ballast — rooftop PV ballast design · v100</title>
+<title>Ballast — rooftop PV ballast design · v101</title>
 <style>
 :root{
   --paper:#EDF0F1; --panel:#F8FAFA; --sunk:#E3E8E9;
@@ -379,6 +379,7 @@ details.more[open]>summary::before{content:"– "}
 .draw-g .wit{stroke:var(--ink2);stroke-width:.55;stroke-dasharray:2.2 2.2;fill:none;opacity:.45}
 .draw-g .mod{stroke:#F4EFE4;stroke-width:1;paint-order:stroke fill;pointer-events:none}
 .draw-g .mod-hit{fill:transparent;stroke:none;cursor:grab}
+.draw-g .offroof,.draw-g .array.grab{cursor:grab}
 .draw-g .mod-hair{fill:none;stroke:#132229;stroke-width:.55;pointer-events:none}
 .draw-g .mod-sel-h{fill:none;stroke:#132229;stroke-width:3.6;pointer-events:none}
 #figPlan{touch-action:none}
@@ -604,7 +605,7 @@ tbody tr:last-child td{border-bottom:0}
       <span class="chip">rational design</span>
       <span class="chip">ASTM D1894</span>
       <span class="chip" id="chipCode">PV2-2017 basis</span>
-      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v100 · engine 4.4.4</span>
+      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v101 · engine 4.4.4</span>
     </div>
     <div class="tools">
       <button type="button" id="newBtn" class="go" title="Start a blank project. Clears the name, every evidence reference and all inherited assumptions.">New project</button>
@@ -5614,8 +5615,14 @@ window.BallastDraw = (function () {
       }
       var offX = Lp.roofOff ? Lp.roofOff.x : 0;
       var offY = Lp.roofOff ? Lp.roofOff.y : 0;
+      /* v101: an array whose panels all fall outside the outline (a small
+         array in a notch of an L or H roof) had nothing to grab but this
+         1 px dashed frame. Then the whole frame takes the pointer, and the
+         off-roof panels below do too, so it can be dragged back. */
+      var allOff = !Lp.units.length && (Lp.offRoof || []).length > 0;
       o += '<rect class="array' + (on ? "" : " dim") + (Lp.onUpper ? " onupper" : "") +
-        '" fill="none" data-ai="' + ai +
+        (allOff ? " grab" : "") +
+        '" fill="none"' + (allOff ? ' pointer-events="all"' : '') + ' data-ai="' + ai +
         '" data-part="' + part + '" data-roof="' + (Lp.onUpper ? "upper" : "lower") +
         '" x="' + fx(X(Lp.ax + offX), 1) + '" y="' + fx(Y(Lp.ay + offY), 1) +
         '" width="' + fx(occW * s, 1) + '" height="' + fx(occH * s, 1) + '"/>';
@@ -5700,10 +5707,12 @@ window.BallastDraw = (function () {
           Lp.nUnits + " units (too many to draw)", "dv", "middle");
       }
       (Lp.offRoof || []).forEach(function (q) {
-        o += '<rect class="offroof" x="' + fx(X(q.x + offX), 2) + '" y="' + fx(Y(q.y + offY), 2) +
+        o += '<rect class="offroof" data-ai="' + ai + '" data-part="' + part +
+          '" x="' + fx(X(q.x + offX), 2) + '" y="' + fx(Y(q.y + offY), 2) +
           '" width="' + fx(q.w * s, 2) + '" height="' + fx(q.h * s, 2) + '" fill="none"' +
-          ' stroke="#D64545" stroke-width=".7" stroke-dasharray="2 1.5" pointer-events="none">' +
-          '<title>Outside the roof outline or inside the setback \u2014 not placed</title></rect>';
+          ' stroke="#D64545" stroke-width=".7" stroke-dasharray="2 1.5" pointer-events="all">' +
+          '<title>Outside the roof outline or inside the setback \u2014 not placed. ' +
+          'Drag to move the array.</title></rect>';
       });
       if (Lp.duo && Lp.nTentsE) {
         for (var rt = 0; rt < Lp.nTentsE; rt++) {
@@ -15048,7 +15057,8 @@ aeffOut:
         return;
       }
       var onMod = t && t.getAttribute && t.getAttribute("data-pick") === "1";
-      var onArr = t && t.classList && t.classList.contains("array");
+      var onArr = t && t.classList &&
+        (t.classList.contains("array") || t.classList.contains("offroof"));
       if (!onMod && !onArr) {
         /* empty roof: pan when zoomed in */
         if (PZ.z > 1.001) {
