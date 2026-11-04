@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="format-detection" content="telephone=no"/>
-<title>Ballast — rooftop PV ballast design · v101</title>
+<title>Ballast — rooftop PV ballast design · v102</title>
 <style>
 :root{
   --paper:#EDF0F1; --panel:#F8FAFA; --sunk:#E3E8E9;
@@ -160,7 +160,59 @@ label.chk input{width:.95rem;height:.95rem;accent-color:var(--gov);flex:0 0 auto
   transition:opacity .16s}
 #toTop.on{opacity:1;pointer-events:auto}
 #toTop:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-@media print{#toTop{display:none}}
+@media print{#toTop,#secBtn,.secpop{display:none!important}}
+/* v102: the section buttons sit on the side. From 1060 px the strip is a
+   fixed column on the right edge, under the header, and the page gives it
+   its own room so it covers nothing. Below 1060 px there is no room for a
+   column: the strip stays at the top and a Sections button above Top opens
+   the same list. */
+:root{--navw:7.4rem;--navpad:calc(var(--navw) + .8rem)}
+#secBtn{position:fixed;right:1rem;z-index:60;display:none;
+  bottom:calc(var(--mb-h,0px) + 3.75rem);
+  padding:.5rem .7rem;font-size:.72rem;border-radius:2px;
+  background:var(--ink);color:#fff;border:1px solid var(--ink);cursor:pointer;
+  box-shadow:0 6px 18px rgba(19,34,41,.28);opacity:0;pointer-events:none;
+  transition:opacity .16s}
+#secBtn.on{opacity:1;pointer-events:auto}
+#secBtn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.secpop{position:fixed;right:1rem;z-index:65;display:flex;flex-direction:column;gap:.25rem;
+  bottom:calc(var(--mb-h,0px) + 6.6rem);max-height:calc(100dvh - var(--mb-h,0px) - 7.6rem);
+  overflow-y:auto;background:var(--panel);border:1px solid var(--ink);padding:.45rem;
+  min-width:9.5rem;box-shadow:0 10px 28px rgba(19,34,41,.3)}
+.secpop[hidden]{display:none}
+.secpop a{font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink2);text-decoration:none;border:1px solid var(--rule);padding:.5rem .6rem;
+  background:var(--panel)}
+.secpop a[hidden]{display:none}
+.secpop a:hover,.secpop a:focus-visible{color:var(--ink);border-color:var(--ink);outline:none}
+.secpop a.cur{background:var(--ink);color:#fff;border-color:var(--ink)}
+@media (max-width:1059px){
+  #secBtn{display:block}
+  #toTop{bottom:calc(var(--mb-h,0px) + 1rem)}
+}
+@media screen and (min-width:1060px){
+  .secpop{display:none!important}
+  /* the page gives up the column's width; the header keeps the full width
+     so its tools do not wrap onto another line */
+  body{padding-right:var(--navpad)}
+  header{margin-right:calc(-1 * var(--navpad))}
+  /* centre the header's content on the same line as the page below it */
+  header>.wrap{max-width:calc(1360px + var(--navpad))}
+  #jump{position:fixed;right:0;top:var(--navtop,var(--hdr-h,4.6rem));bottom:3.7rem;width:var(--navw);
+    z-index:35;flex-direction:column;flex-wrap:nowrap;gap:.25rem;
+    overflow-y:auto;overflow-x:hidden;padding:.7rem .6rem .7rem .5rem;
+    border-bottom:0;border-left:1px solid var(--rule);background:var(--paper);
+    scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
+  #jump a{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #jump a[hidden]{display:none}
+}
+/* wide screens: the column fits in the margin beside the 1360 px page */
+@media screen and (min-width:1630px){
+  body{padding-right:0}
+  header{margin-right:0}
+  header>.wrap{max-width:1360px}
+  #jump{border-left:0;background:transparent}
+}
 .ovl{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-start;justify-content:center;
   background:rgba(19,34,41,.42);padding:4rem 1rem 2rem;overflow:auto}
 .ovl[hidden]{display:none}
@@ -605,7 +657,7 @@ tbody tr:last-child td{border-bottom:0}
       <span class="chip">rational design</span>
       <span class="chip">ASTM D1894</span>
       <span class="chip" id="chipCode">PV2-2017 basis</span>
-      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v101 · engine 4.4.4</span>
+      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v102 · engine 4.4.4</span>
     </div>
     <div class="tools">
       <button type="button" id="newBtn" class="go" title="Start a blank project. Clears the name, every evidence reference and all inherited assumptions.">New project</button>
@@ -1359,6 +1411,8 @@ tbody tr:last-child td{border-bottom:0}
 </div>
 <div class="minibar" id="minibar" role="status"></div>
 <button type="button" id="toTop" title="Back to the top (Home)" aria-label="Back to the top">&uarr; Top</button>
+<button type="button" id="secBtn" title="Jump to a section" aria-expanded="false" aria-controls="secPop"><span aria-hidden="true">&#9776;</span> Sections</button>
+<nav class="secpop" id="secPop" aria-label="Sections list" hidden></nav>
 
 <div class="wrap sheets">
   <section class="trace" id="sec-sched">
@@ -15451,6 +15505,34 @@ aeffOut:
     "sec-sched": "Schedule", "sec-trace": "Trace", "sec-tilt": "Tilt",
     "sec-verifyEngine": "Verify"
   };
+  var BallastJumpMark = function () {};
+  var jumpPin = null;   /* the section just jumped to, until the user scrolls */
+  /* Does the header really stay on screen? It is position:sticky, but body
+     clips sideways overflow, which makes body a scroll box of its own, so the
+     header scrolls away with the page. Read it rather than assume it. */
+  function headerPinned() {
+    var h = document.querySelector("header");
+    if (!h || getComputedStyle(h).position !== "sticky") return false;
+    var bs = getComputedStyle(document.body);
+    return /^(visible|clip)$/.test(bs.overflowX) && /^(visible|clip)$/.test(bs.overflowY);
+  }
+  /* how far down the screen the header still reaches */
+  function headerBottom() {
+    var h = document.querySelector("header");
+    if (!h) return 0;
+    return headerPinned() ? h.offsetHeight : Math.max(0, h.getBoundingClientRect().bottom);
+  }
+  function closeSecPop(refocus) {
+    var pop = el("secPop"), sb = el("secBtn");
+    if (!pop || pop.hidden) return;
+    var had = pop.contains(document.activeElement);
+    pop.hidden = true;
+    if (sb) sb.setAttribute("aria-expanded", "false");
+    if (!refocus && !had) return;
+    /* never leave focus inside a list that has just been hidden */
+    var tgt = (sb && sb.classList.contains("on")) ? sb : (el("client") || el("proj"));
+    if (tgt) try { tgt.focus({ preventScroll: true }); } catch (e) {}
+  }
   (function buildJump() {
     var nav = el("jump");
     if (!nav) return;
@@ -15471,9 +15553,16 @@ aeffOut:
       var a = document.createElement("a");
       a.href = "#" + id;
       a.textContent = lab;
+      a.title = lab;
       a.setAttribute("data-jump", id);
       nav.appendChild(a);
-      links.push({ a: a, id: id, node: nd });
+      /* v102: the same link in the Sections pop-up for narrow screens */
+      var b = null, pop = el("secPop");
+      if (pop) {
+        b = a.cloneNode(true);
+        pop.appendChild(b);
+      }
+      links.push({ a: a, b: b, id: id, node: nd });
     });
 
     /* Mark the section currently in view, so the strip says where you are. */
@@ -15481,16 +15570,72 @@ aeffOut:
     function mark() {
       ticking = false;
       var best = null, bestTop = -Infinity;
+      var hdrM = document.querySelector("header");
+      var hH = hdrM ? hdrM.offsetHeight : 74;
+      var hB = headerBottom(), lim = hB + 70;
+      var rootS = document.documentElement.style;
+      if (hdrM && rootS.getPropertyValue("--hdr-h") !== hH + "px") rootS.setProperty("--hdr-h", hH + "px");
+      /* the side column starts under the header while it is on screen and
+         moves up to the top once it has scrolled away */
+      var nt = Math.round(Math.max(10, hB)) + "px";
+      if (rootS.getPropertyValue("--navtop") !== nt) rootS.setProperty("--navtop", nt);
       links.forEach(function (L) {
+        /* a section that is switched off has no box: hide its link */
+        var shown = L.node.getClientRects().length > 0;
+        L.a.hidden = !shown;
+        if (L.b) L.b.hidden = !shown;
+        if (!shown) return;
         var r = L.node.getBoundingClientRect();
-        if (r.top <= 140 && r.top > bestTop) { bestTop = r.top; best = L; }
+        if (r.top <= lim && r.top > bestTop) { bestTop = r.top; best = L; }
       });
-      links.forEach(function (L) { L.a.classList.toggle("cur", L === best); });
+      /* at the foot of the page the last sections can never reach the top:
+         mark the last one that is on screen */
+      var de = document.documentElement;
+      if ((window.scrollY || 0) + window.innerHeight >= de.scrollHeight - 2) {
+        for (var li = links.length - 1; li >= 0; li--) {
+          var Lb = links[li];
+          if (Lb.a.hidden) continue;
+          if (Lb.node.getBoundingClientRect().top < window.innerHeight - 40) { best = Lb; break; }
+        }
+      }
+      /* the section just jumped to stays marked while it is on screen,
+         even where the page foot would pick a later one */
+      if (jumpPin) {
+        for (var pi = 0; pi < links.length; pi++) {
+          var Lp = links[pi];
+          if (Lp.id !== jumpPin) continue;
+          var rp = Lp.a.hidden ? null : Lp.node.getBoundingClientRect();
+          if (rp && rp.top < window.innerHeight - 40 && rp.bottom > hB) best = Lp; else jumpPin = null;
+          break;
+        }
+      }
+      links.forEach(function (L) {
+        var on = L === best;
+        [L.a, L.b].forEach(function (x) {
+          if (!x) return;
+          x.classList.toggle("cur", on);
+          if (on) x.setAttribute("aria-current", "location");
+          else x.removeAttribute("aria-current");
+        });
+      });
+      /* keep the current link in view when the side column scrolls */
+      if (best && nav.scrollHeight > nav.clientHeight + 1 && getComputedStyle(nav).position === "fixed") {
+        var at = best.a.offsetTop, ah = best.a.offsetHeight;
+        if (at < nav.scrollTop) nav.scrollTop = at - 8;
+        else if (at + ah > nav.scrollTop + nav.clientHeight) nav.scrollTop = at + ah - nav.clientHeight + 8;
+      }
     }
+    BallastJumpMark = mark;
     window.addEventListener("scroll", function () {
       if (!ticking) { ticking = true; requestAnimationFrame(mark); }
+      var on = (window.scrollY || 0) > 400;
       var t = el("toTop");
-      if (t) t.classList.toggle("on", (window.scrollY || 0) > 400);
+      if (t) t.classList.toggle("on", on);
+      var sb = el("secBtn");
+      if (sb) {
+        sb.classList.toggle("on", on);
+        if (!on) closeSecPop(false);
+      }
     }, { passive: true });
     mark();
   })();
@@ -15537,18 +15682,85 @@ aeffOut:
     if (hdr) h += hdr.offsetHeight;
     if (bar) h += bar.offsetHeight;
     document.documentElement.style.setProperty("--split-top", h + "px");
+    /* v102: the side column starts under the header; on narrow screens the
+       Top and Sections buttons sit above the result bar at the bottom. */
+    if (hdr) document.documentElement.style.setProperty("--hdr-h", hdr.offsetHeight + "px");
+    var mb = el("minibar");
+    document.documentElement.style.setProperty("--mb-h", (mb ? mb.offsetHeight : 0) + "px");
+    BallastJumpMark();
   }
   measureSplit();
   window.addEventListener("resize", measureSplit);
+  /* the header settles once the web fonts are in; measure again then */
+  window.addEventListener("load", measureSplit);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(measureSplit, function () {});
+  if (window.ResizeObserver) {
+    try {
+      var roSplit = new ResizeObserver(function () { measureSplit(); });
+      var hdrO = document.querySelector("header"), mbO = el("minibar");
+      if (hdrO) roSplit.observe(hdrO);
+      if (mbO) roSplit.observe(mbO);
+    } catch (eRO) {}
+  }
+  function jumpTo(ev) {
+    var a = ev.target.closest ? ev.target.closest("a[href^='#']") : null;
+    if (!a) return;
+    var t = el(a.getAttribute("href").slice(1));
+    if (!t) return;
+    ev.preventDefault();
+    closeSecPop(false);
+    jumpPin = t.id;
+    /* land 12 px below whatever stays on screen at the top: the header when
+       it is pinned, nothing when it scrolls away with the page */
+    var off = (headerPinned() ? document.querySelector("header").offsetHeight : 0) + 12;
+    var y = t.getBoundingClientRect().top + (window.scrollY || 0) - off;
+    window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+    BallastJumpMark();
+    /* move keyboard focus to the section without a second scroll */
+    if (!t.hasAttribute("tabindex")) t.setAttribute("tabindex", "-1");
+    try { t.focus({ preventScroll: true }); } catch (e) {}
+  }
   var jump = el("jump");
-  if (jump) {
-    jump.addEventListener("click", function (ev) {
-      var a = ev.target.closest ? ev.target.closest("a[href^='#']") : null;
-      if (!a) return;
-      var t = el(a.getAttribute("href").slice(1));
-      if (!t) return;
-      ev.preventDefault();
-      t.scrollIntoView({ block: "start", behavior: "smooth" });
+  if (jump) jump.addEventListener("click", jumpTo);
+  /* scrolling by hand ends the pin */
+  ["wheel", "touchstart"].forEach(function (tp) {
+    window.addEventListener(tp, function () { jumpPin = null; }, { passive: true });
+  });
+  window.addEventListener("keydown", function (ev) {
+    if (/^(ArrowUp|ArrowDown|PageUp|PageDown|Home|End| )$/.test(ev.key)) jumpPin = null;
+  });
+  var secPop = el("secPop"), secBtn = el("secBtn");
+  if (secPop && secBtn) {
+    secPop.addEventListener("click", jumpTo);
+    secBtn.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      if (!secPop.hidden) { closeSecPop(false); return; }
+      BallastJumpMark();
+      secPop.hidden = false;
+      secBtn.setAttribute("aria-expanded", "true");
+      var cur = secPop.querySelector("a.cur:not([hidden])") || secPop.querySelector("a:not([hidden])");
+      if (cur) {
+        try { cur.focus({ preventScroll: true }); } catch (e) {}
+        if (cur.offsetTop + cur.offsetHeight > secPop.scrollTop + secPop.clientHeight)
+          secPop.scrollTop = cur.offsetTop - secPop.clientHeight / 2;
+      }
+    });
+    /* pointerdown as well as click: iOS sends no click for a tap on plain
+       page content, so a tap outside would not close the list */
+    function outsideSecPop(ev) {
+      if (secPop.hidden) return;
+      if (secPop.contains(ev.target) || secBtn.contains(ev.target)) return;
+      closeSecPop(false);
+    }
+    document.addEventListener("click", outsideSecPop);
+    document.addEventListener("pointerdown", outsideSecPop, { passive: true });
+    /* tabbing out of the list closes it */
+    secPop.addEventListener("focusout", function (ev) {
+      var to = ev.relatedTarget;
+      if (to && !secPop.contains(to) && to !== secBtn) closeSecPop(false);
+    });
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape" && !secPop.hidden) { ev.preventDefault(); closeSecPop(true); }
     });
   }
 
