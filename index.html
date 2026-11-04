@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="format-detection" content="telephone=no"/>
-<title>Ballast — rooftop PV ballast design · v102</title>
+<title>Ballast — rooftop PV ballast design · v103</title>
 <style>
 :root{
   --paper:#EDF0F1; --panel:#F8FAFA; --sunk:#E3E8E9;
@@ -157,14 +157,17 @@ label.chk input{width:.95rem;height:.95rem;accent-color:var(--gov);flex:0 0 auto
   padding:.5rem .7rem;font-size:.72rem;border-radius:2px;
   background:var(--ink);color:#fff;border:1px solid var(--ink);cursor:pointer;
   box-shadow:0 6px 18px rgba(19,34,41,.28);opacity:0;pointer-events:none;
-  transition:opacity .16s}
-#toTop.on{opacity:1;pointer-events:auto}
+  visibility:hidden;transition:opacity .16s,visibility 0s linear .16s}
+/* hidden as well as transparent, so Tab does not stop on an invisible button */
+#toTop.on{opacity:1;pointer-events:auto;visibility:visible;transition:opacity .16s,visibility 0s}
 #toTop:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 @media print{#toTop,#secBtn,.secpop{display:none!important}}
-/* v102: the section buttons sit on the side. From 1060 px the strip is a
-   fixed column on the right edge, under the header, and the page gives it
-   its own room so it covers nothing. Below 1060 px there is no room for a
-   column: the strip stays at the top and a Sections button above Top opens
+/* v102/v103: the section buttons sit on the side. From 1240 px the strip is
+   a fixed column in the right margin, under the header. The page stays
+   centred: where the screen has less margin than the column needs, the page
+   narrows by the same amount on both sides, so the margins stay equal.
+   Below 1240 px that would squeeze the inputs, so the page keeps its full
+   width, the strip stays at the top and a Sections button above Top opens
    the same list. */
 :root{--navw:7.4rem;--navpad:calc(var(--navw) + .8rem)}
 #secBtn{position:fixed;right:1rem;z-index:60;display:none;
@@ -172,8 +175,8 @@ label.chk input{width:.95rem;height:.95rem;accent-color:var(--gov);flex:0 0 auto
   padding:.5rem .7rem;font-size:.72rem;border-radius:2px;
   background:var(--ink);color:#fff;border:1px solid var(--ink);cursor:pointer;
   box-shadow:0 6px 18px rgba(19,34,41,.28);opacity:0;pointer-events:none;
-  transition:opacity .16s}
-#secBtn.on{opacity:1;pointer-events:auto}
+  visibility:hidden;transition:opacity .16s,visibility 0s linear .16s}
+#secBtn.on{opacity:1;pointer-events:auto;visibility:visible;transition:opacity .16s,visibility 0s}
 #secBtn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .secpop{position:fixed;right:1rem;z-index:65;display:flex;flex-direction:column;gap:.25rem;
   bottom:calc(var(--mb-h,0px) + 6.6rem);max-height:calc(100dvh - var(--mb-h,0px) - 7.6rem);
@@ -186,19 +189,26 @@ label.chk input{width:.95rem;height:.95rem;accent-color:var(--gov);flex:0 0 auto
 .secpop a[hidden]{display:none}
 .secpop a:hover,.secpop a:focus-visible{color:var(--ink);border-color:var(--ink);outline:none}
 .secpop a.cur{background:var(--ink);color:#fff;border-color:var(--ink)}
-@media (max-width:1059px){
+.secpop a.cur:focus-visible{outline:2px solid var(--gov);outline-offset:1px}
+/* The switch point is in em (77.5em = 1240 px at the normal text size) because
+   the column and the margins are in rem: with a larger browser text size the
+   page switches later, so the inputs are never squeezed. "not all and" is the
+   exact complement, so no fractional width at display scaling falls between. */
+@media not all and (min-width:77.5em){
   #secBtn{display:block}
+}
+@media (max-width:1059px){
   #toTop{bottom:calc(var(--mb-h,0px) + 1rem)}
 }
-@media screen and (min-width:1060px){
+@media screen and (min-width:77.5em){
   .secpop{display:none!important}
-  /* the page gives up the column's width; the header keeps the full width
-     so its tools do not wrap onto another line */
-  body{padding-right:var(--navpad)}
-  header{margin-right:calc(-1 * var(--navpad))}
-  /* centre the header's content on the same line as the page below it */
-  header>.wrap{max-width:calc(1360px + var(--navpad))}
-  #jump{position:fixed;right:0;top:var(--navtop,var(--hdr-h,4.6rem));bottom:3.7rem;width:var(--navw);
+  /* the page gives up the column's width on both sides, so it stays centred
+     with the column in the right margin; the header keeps the full width so
+     its tools do not wrap onto another line */
+  body>div.wrap,body>main.wrap{max-width:min(1360px,calc(100% - 2 * var(--navpad)))}
+  /* the column hangs just right of the page */
+  #jump{position:fixed;right:max(0px,calc((100% - min(1360px,100% - 2 * var(--navpad))) / 2 - var(--navpad)));
+    top:var(--navtop,var(--hdr-h,4.6rem));bottom:3.7rem;width:var(--navw);
     z-index:35;flex-direction:column;flex-wrap:nowrap;gap:.25rem;
     overflow-y:auto;overflow-x:hidden;padding:.7rem .6rem .7rem .5rem;
     border-bottom:0;border-left:1px solid var(--rule);background:var(--paper);
@@ -206,11 +216,9 @@ label.chk input{width:.95rem;height:.95rem;accent-color:var(--gov);flex:0 0 auto
   #jump a{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #jump a[hidden]{display:none}
 }
-/* wide screens: the column fits in the margin beside the 1360 px page */
-@media screen and (min-width:1630px){
-  body{padding-right:0}
-  header{margin-right:0}
-  header>.wrap{max-width:1360px}
+/* wide screens: the page keeps its full 1360 px and the column floats in
+   the margin beside it (1360 px + both margins + a scrollbar) */
+@media screen and (min-width:calc(1360px + 16.4em + 20px)){
   #jump{border-left:0;background:transparent}
 }
 .ovl{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-start;justify-content:center;
@@ -292,6 +300,10 @@ details.more[open]>summary::before{content:"– "}
   text-transform:uppercase;color:var(--ink2);text-decoration:none;
   border:1px solid var(--rule);padding:.28rem .5rem;background:var(--panel)}
 .jump a:hover,.jump a:focus-visible{color:var(--ink);border-color:var(--ink);outline:none}
+/* the current section keeps its white label under the pointer, and shows
+   keyboard focus with an outline because its border is already dark */
+.jump a.cur:hover,.jump a.cur:focus-visible{color:#fff;background:var(--ink)}
+.jump a.cur:focus-visible{outline:2px solid var(--gov);outline-offset:1px}
 .presets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.45rem;
   padding:.15rem 0 .1rem}
 .presets button{width:auto;min-width:0;height:auto;min-height:0;padding:.55rem .7rem;
@@ -657,7 +669,7 @@ tbody tr:last-child td{border-bottom:0}
       <span class="chip">rational design</span>
       <span class="chip">ASTM D1894</span>
       <span class="chip" id="chipCode">PV2-2017 basis</span>
-      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v102 · engine 4.4.4</span>
+      <span class="chip" id="verChip" title="Build and engine version. Compare this with the page title after uploading, to confirm the deployed copy is current.">v103 · engine 4.4.4</span>
     </div>
     <div class="tools">
       <button type="button" id="newBtn" class="go" title="Start a blank project. Clears the name, every evidence reference and all inherited assumptions.">New project</button>
@@ -15530,7 +15542,8 @@ aeffOut:
     if (sb) sb.setAttribute("aria-expanded", "false");
     if (!refocus && !had) return;
     /* never leave focus inside a list that has just been hidden */
-    var tgt = (sb && sb.classList.contains("on")) ? sb : (el("client") || el("proj"));
+    var sbShown = sb && sb.classList.contains("on") && getComputedStyle(sb).display !== "none";
+    var tgt = sbShown ? sb : (el("client") || el("proj"));
     if (tgt) try { tgt.focus({ preventScroll: true }); } catch (e) {}
   }
   (function buildJump() {
@@ -15687,6 +15700,10 @@ aeffOut:
     if (hdr) document.documentElement.style.setProperty("--hdr-h", hdr.offsetHeight + "px");
     var mb = el("minibar");
     document.documentElement.style.setProperty("--mb-h", (mb ? mb.offsetHeight : 0) + "px");
+    /* widened past the switch point: the side column takes over, so the
+       Sections list must not stay open out of sight */
+    var sbM = el("secBtn");
+    if (sbM && getComputedStyle(sbM).display === "none") closeSecPop(false);
     BallastJumpMark();
   }
   measureSplit();
